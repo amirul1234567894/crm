@@ -1,0 +1,724 @@
+{
+  "name": "LeadFlow CRM \u2014 multi-client",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000001",
+      "name": "Every hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -880,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c1",
+              "name": "crmUrl",
+              "value": "https://crm.yourdomain.com",
+              "type": "string"
+            },
+            {
+              "id": "c2",
+              "name": "crmSecret",
+              "value": "PASTE_YOUR_N8N_SHARED_SECRET",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000002",
+      "name": "Set config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -660,
+        -200
+      ],
+      "notes": "Ei duita value bodla \u2014 ar kichu na."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set config').first().json.crmUrl }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-crm-secret",
+              "value": "={{ $('Set config').first().json.crmSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\":\"list_orgs\"}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000003",
+      "name": "Get all clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -440,
+        -200
+      ],
+      "notes": "Sob active client er list ane. Notun client add korle nijei chole ashbe."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "orgs",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000004",
+      "name": "One client per item",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000005",
+      "name": "Client by client",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        0,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set config').first().json.crmUrl }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-crm-secret",
+              "value": "={{ $('Set config').first().json.crmSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\":\"due_followups\",\"org_slug\":\"{{ $json.slug }}\"}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000006",
+      "name": "What is due for this client",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "followups",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000007",
+      "name": "One lead per item",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        440,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000008",
+      "name": "One lead at a time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        660,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "w1",
+              "leftValue": "={{ $json.send_as }}",
+              "rightValue": "text",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000009",
+      "name": "Inside 24 hours?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set config').first().json.crmUrl }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-crm-secret",
+              "value": "={{ $('Set config').first().json.crmSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\":\"send_message\",\"org_slug\":\"{{ $('Client by client').item.json.slug }}\",\"phone\":\"{{ $json.phone }}\",\"text\":\"{{ $json.text }}\"}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000010",
+      "name": "Send plain message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set config').first().json.crmUrl }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-crm-secret",
+              "value": "={{ $('Set config').first().json.crmSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\":\"send_template\",\"org_slug\":\"{{ $('Client by client').item.json.slug }}\",\"phone\":\"{{ $json.phone }}\",\"template\":\"{{ $json.template }}\",\"language\":\"{{ $json.language }}\",\"variables\":[\"{{ $json.name }}\"]}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000011",
+      "name": "Send template",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 1,
+        "unit": "seconds"
+      },
+      "id": "b2000000-0000-4000-8000-000000000012",
+      "name": "Pause a second",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-events",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "b2000000-0000-4000-8000-000000000020",
+      "name": "CRM events in",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        400
+      ],
+      "notes": "Ei URL ta protyek client er Settings page e 'n8n webhook URL' e boshabe."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CRM duirokom event pathay:\n//   type = \"meta_event\"    \u2192 kacha Meta payload\n//   type = \"rule_matched\"  \u2192 keyword rule match hoyeche\nconst e = $input.first().json.body ?? $input.first().json;\n\nreturn [{\n  json: {\n    type:      e.type ?? \"unknown\",\n    tag:       e.tag ?? null,          // rule er n8n_tag\n    orgSlug:   e.org_slug ?? null,     // KON CLIENT \u2014 eta chara kichu pathano jabe na\n    orgId:     e.org_id ?? null,\n    ruleName:  e.rule_name ?? null,\n    channel:   e.channel ?? null,\n    leadId:    e.lead?.id ?? null,\n    leadName:  e.lead?.name ?? null,\n    phone:     e.lead?.channel_uid ?? e.lead?.phone ?? null,\n    message:   e.message ?? null,\n    raw: e,\n  }\n}];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000021",
+      "name": "Read the event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -660,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.orgSlug }}",
+                    "rightValue": "client-one",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "client-one"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.orgSlug }}",
+                    "rightValue": "client-two",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "client-two"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "everyone else"
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000022",
+      "name": "Which client?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -440,
+        400
+      ],
+      "notes": "NOTUN CLIENT ADD KORAR JAYGA: ekhane ekta rule baraye tar slug boshao."
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tag }}",
+                    "rightValue": "greeting_payment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "payment link"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.tag }}",
+                    "rightValue": "price_list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "price list"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "anything else"
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000023",
+      "name": "What did they ask for?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -220,
+        300
+      ],
+      "notes": "CRM er Reply Rules page e je tag likhbi, seta ekhane branch hobe."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Client-one er payment flow.\n// Onno client er jonno ei node ta copy kore bodle nao.\nconst d = $input.first().json;\n\nconst amount = 500;\nconst link = `https://pay.example.com/checkout?ref=${d.leadId}&amt=${amount}`;\n\nreturn [{\n  json: {\n    orgSlug: d.orgSlug,\n    phone: d.phone,\n    text: `Assalamu alaikum ${d.leadName || ''}!\\n\\n`\n        + `Amader service charge: ${amount} taka.\\n`\n        + `Payment korte ei link e jan:\\n${link}\\n\\n`\n        + `bKash: 01XXXXXXXXX (Send Money)\\n`\n        + `Payment er por TrxID ta ekhane pathan.`,\n  }\n}];"
+      },
+      "id": "b2000000-0000-4000-8000-000000000024",
+      "name": "Build the payment message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set config').first().json.crmUrl }}/api/webhooks/n8n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-crm-secret",
+              "value": "={{ $('Set config').first().json.crmSecret }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"action\":\"send_message\",\"org_slug\":\"{{ $json.orgSlug }}\",\"phone\":\"{{ $json.phone }}\",\"text\":\"{{ $json.text }}\"}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2000000-0000-4000-8000-000000000025",
+      "name": "Send it back",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Kono tag match na korle \u2014 sudhu log kore rakhi.\n// Ekhane Slack notify, Google Sheet e likha, ja khushi korte parish.\nconsole.log('Unhandled event:', $input.first().json.type, $input.first().json.tag);\nreturn $input.all();"
+      },
+      "id": "b2000000-0000-4000-8000-000000000026",
+      "name": "Mark the lead hot",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        400
+      ]
+    }
+  ],
+  "connections": {
+    "Every hour": {
+      "main": [
+        [
+          {
+            "node": "Set config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set config": {
+      "main": [
+        [
+          {
+            "node": "Get all clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get all clients": {
+      "main": [
+        [
+          {
+            "node": "One client per item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One client per item": {
+      "main": [
+        [
+          {
+            "node": "Client by client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Client by client": {
+      "main": [
+        [],
+        [
+          {
+            "node": "What is due for this client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "What is due for this client": {
+      "main": [
+        [
+          {
+            "node": "One lead per item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One lead per item": {
+      "main": [
+        [
+          {
+            "node": "One lead at a time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "One lead at a time": {
+      "main": [
+        [
+          {
+            "node": "Client by client",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Inside 24 hours?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inside 24 hours?": {
+      "main": [
+        [
+          {
+            "node": "Send plain message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send plain message": {
+      "main": [
+        [
+          {
+            "node": "Pause a second",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send template": {
+      "main": [
+        [
+          {
+            "node": "Pause a second",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause a second": {
+      "main": [
+        [
+          {
+            "node": "One lead at a time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "CRM events in": {
+      "main": [
+        [
+          {
+            "node": "Read the event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read the event": {
+      "main": [
+        [
+          {
+            "node": "Which client?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which client?": {
+      "main": [
+        [
+          {
+            "node": "What did they ask for?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "What did they ask for?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark the lead hot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "What did they ask for?": {
+      "main": [
+        [
+          {
+            "node": "Build the payment message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark the lead hot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark the lead hot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build the payment message": {
+      "main": [
+        [
+          {
+            "node": "Send it back",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "leadflow-v2"
+  },
+  "tags": []
+}
