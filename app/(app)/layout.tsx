@@ -11,6 +11,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!ctx) redirect("/login");
   const { data: { user } } = await createClient().auth.getUser();
 
+  // Full block for suspended/archived workspaces (except superadmin).
+  // No page renders, no client-side Supabase calls fire -- login still
+  // works, but nothing inside the app is reachable or functional.
+  const blocked = (ctx.status === "suspended" || ctx.status === "archived") && !ctx.isSuperadmin;
+
   return (
     <AppShell
       userEmail={user?.email ?? ""}
@@ -19,18 +24,29 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       role={ctx.role}
       userId={ctx.userId}
     >
-      {ctx.status === "suspended" && !ctx.isSuperadmin && (
-        <div className="bg-rose-600 px-4 py-2 text-center text-xs font-semibold text-white">
-          This workspace is on hold — please clear the outstanding invoice on the Billing page.
-        </div>
-      )}
       <OrgProvider
         value={{
           orgId: ctx.orgId, name: ctx.name, slug: ctx.slug, role: ctx.role,
           userId: ctx.userId, isSuperadmin: ctx.isSuperadmin, status: ctx.status,
         }}
       >
-        {children}
+        {blocked ? (
+          <div className="flex min-h-[70vh] items-center justify-center p-6">
+            <div className="max-w-sm text-center">
+              <div className="mb-3 text-3xl">🔒</div>
+              <h1 className="mb-1 text-base font-bold">
+                {ctx.status === "archived" ? "This workspace has been archived" : "This workspace is on hold"}
+              </h1>
+              <p className="text-sm text-muted">
+                {ctx.status === "archived"
+                  ? "This workspace is no longer active. Please contact support if you believe this is a mistake."
+                  : "Access has been paused. Please contact support to restore access."}
+              </p>
+            </div>
+          </div>
+        ) : (
+          children
+        )}
       </OrgProvider>
     </AppShell>
   );

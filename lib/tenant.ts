@@ -5,7 +5,7 @@ export interface OrgContext {
   orgId: string;
   slug: string;
   name: string;
-  status: "trial" | "active" | "suspended";
+  status: "trial" | "active" | "suspended" | "archived";
   plan: string;
   role: "owner" | "manager" | "agent";
   isSuperadmin: boolean;
@@ -50,7 +50,7 @@ export interface BusinessHours {
    Signed-in user er org
    ========================================================================== */
 
-/** Ke login kore ache ar kon org e — na thakle null. */
+/** Ke login kore ache ar kon org e â€” na thakle null. */
 export async function getOrgContext(): Promise<OrgContext | null> {
   const supabase = createClient();
   const {
@@ -86,7 +86,7 @@ export async function getOrgContext(): Promise<OrgContext | null> {
 
 /**
  * API route er guard.
- * Fail hole { error, status } dey — success e { ctx }.
+ * Fail hole { error, status } dey â€” success e { ctx }.
  *
  *   const guard = await requireOrg({ owner: true });
  *   if ("error" in guard) return NextResponse.json({ error: guard.error }, { status: guard.status });
@@ -111,9 +111,12 @@ export async function requireOrg(
     return { error: "Only a manager or the owner can do this.", status: 403 };
   }
 
-  if (!opts.allowSuspended && ctx.status === "suspended" && !ctx.isSuperadmin) {
+  if (!opts.allowSuspended && (ctx.status === "suspended" || ctx.status === "archived") && !ctx.isSuperadmin) {
     return {
-      error: "This account is on hold. Please clear the outstanding invoice to continue.",
+      error:
+        ctx.status === "archived"
+          ? "This workspace has been archived. Please contact support."
+          : "This account is on hold. Please contact support.",
       status: 402,
     };
   }
@@ -122,7 +125,7 @@ export async function requireOrg(
 }
 
 /* ==========================================================================
-   Org credentials — sudhu server side. Token gulo ekhane decrypt hoy.
+   Org credentials â€” sudhu server side. Token gulo ekhane decrypt hoy.
    ========================================================================== */
 
 const DEFAULT_HOURS: BusinessHours = {
@@ -183,7 +186,7 @@ export async function getOrgCredentialsBySlug(slug: string): Promise<OrgCredenti
 }
 
 /**
- * Slug chara webhook ashle (purono client) — Meta payload dekhe org khuji.
+ * Slug chara webhook ashle (purono client) â€” Meta payload dekhe org khuji.
  * WhatsApp: phone_number_id.  Messenger/Instagram: page id / ig account id.
  */
 export async function resolveOrgFromMetaPayload(body: any): Promise<OrgCredentials | null> {
@@ -191,7 +194,7 @@ export async function resolveOrgFromMetaPayload(body: any): Promise<OrgCredentia
   const ids = new Set<string>();
 
   // C-7 fix: entry.id attacker-controlled (signature verify er AGE ashe).
-  // Meta ID sob shomoy numeric — onno kichu hole PostgREST filter injection.
+  // Meta ID sob shomoy numeric â€” onno kichu hole PostgREST filter injection.
   const addId = (v: unknown) => {
     const s = String(v ?? "");
     if (/^\d{1,25}$/.test(s)) ids.add(s);
@@ -253,7 +256,7 @@ export function isWithinBusinessHours(h: BusinessHours, now = new Date()): boole
   const openMin = oh * 60 + om;
   const closeMin = ch * 60 + cm;
 
-  // Raat 22:00 – sokal 06:00 er moto overnight window
+  // Raat 22:00 â€“ sokal 06:00 er moto overnight window
   return closeMin >= openMin
     ? minutes >= openMin && minutes <= closeMin
     : minutes >= openMin || minutes <= closeMin;

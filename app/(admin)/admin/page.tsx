@@ -33,6 +33,7 @@ export default function AdminConsole() {
   const [anns, setAnns] = useState<Announcement[]>([]);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   // new org form
   const [showNewOrg, setShowNewOrg] = useState(false);
@@ -58,7 +59,7 @@ export default function AdminConsole() {
   async function createWorkspace() {
     setMsg(null);
     if (!orgForm.name.trim() || !orgForm.slug.trim() || !orgForm.owner_email.trim())
-      return setMsg({ ok: false, text: "Name, slug ar admin email lagbe." });
+      return setMsg({ ok: false, text: "Name, slug and admin email are required." });
     setBusy(true);
     const res = await fetch("/api/admin/orgs", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -67,7 +68,7 @@ export default function AdminConsole() {
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setMsg({ ok: false, text: j.error ?? "Create failed." });
-    setMsg({ ok: true, text: `Workspace ready! Client ke pathao — URL: ${location.origin}/login · Email: ${orgForm.owner_email} · Password: ${orgForm.owner_password}` });
+    setMsg({ ok: true, text: `Workspace ready! Send to the client — URL: ${location.origin}/login · Email: ${orgForm.owner_email} · Password: ${orgForm.owner_password}` });
     setShowNewOrg(false);
     setOrgForm({ name: "", slug: "", owner_email: "", owner_password: genPassword(), monthly_amount: 2000 });
     load();
@@ -84,14 +85,14 @@ export default function AdminConsole() {
 
   async function raiseInvoice() {
     setMsg(null);
-    if (!invForm.org_id || !(Number(invForm.amount) > 0)) return setMsg({ ok: false, text: "Workspace ar amount de." });
+    if (!invForm.org_id || !(Number(invForm.amount) > 0)) return setMsg({ ok: false, text: "Pick a workspace and amount." });
     setBusy(true);
     const res = await fetch("/api/admin/invoices", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ org_id: invForm.org_id, amount: Number(invForm.amount), due_date: invForm.due_date || undefined }),
     });
     setBusy(false);
-    if (!res.ok) return setMsg({ ok: false, text: "Invoice create hoy ni." });
+    if (!res.ok) return setMsg({ ok: false, text: "Could not create the invoice." });
     setMsg({ ok: true, text: "Invoice raised." });
     setInvForm({ org_id: "", amount: "", due_date: "" }); load();
   }
@@ -107,11 +108,11 @@ export default function AdminConsole() {
   }
 
   async function saveAnnouncement() {
-    if (!annForm.title.trim()) return setMsg({ ok: false, text: "Title lagbe." });
+    if (!annForm.title.trim()) return setMsg({ ok: false, text: "Title is required." });
     const { error } = await createClient().from("announcements").insert({
       title: annForm.title.trim(), body: annForm.body.trim() || null, level: annForm.level,
     });
-    if (error) return setMsg({ ok: false, text: "Announcement save hoy ni." });
+    if (error) return setMsg({ ok: false, text: "Could not save the announcement." });
     setAnnForm({ title: "", body: "", level: "info" });
     setMsg({ ok: true, text: "Announcement live." }); load();
   }
@@ -122,21 +123,25 @@ export default function AdminConsole() {
 
   const statusBadge = (s: string) =>
     s === "active" ? "bg-emerald-100 text-emerald-700" :
-    s === "suspended" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700";
+    s === "suspended" ? "bg-rose-100 text-rose-700" :
+    s === "archived" ? "bg-slate-200 text-slate-600" : "bg-amber-100 text-amber-700";
 
   const submitted = invoices.filter((i) => i.status === "submitted");
+  const activeCount = orgs.filter((o) => o.status !== "archived").length;
+  const archivedCount = orgs.filter((o) => o.status === "archived").length;
+  const visibleOrgs = orgs.filter((o) => (showArchived ? o.status === "archived" : o.status !== "archived"));
 
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div>
         <h1 className="text-lg font-bold">Provider console</h1>
-        <p className="text-xs text-muted">Sob client workspace, billing verification ar global announcements.</p>
+        <p className="text-xs text-muted">All client workspaces, billing verification, and global announcements.</p>
       </div>
 
       <div className="flex gap-2 text-xs">
         {(["orgs", "billing", "announce"] as const).map((t) => (
           <button key={t} className={tab === t ? "btn" : "btn-ghost"} onClick={() => setTab(t)}>
-            {t === "orgs" ? `Workspaces (${orgs.length})` : t === "billing" ? `Billing${submitted.length ? ` · ${submitted.length} pending` : ""}` : "Announcements"}
+            {t === "orgs" ? `Workspaces (${activeCount})` : t === "billing" ? `Billing${submitted.length ? ` · ${submitted.length} pending` : ""}` : "Announcements"}
           </button>
         ))}
       </div>
@@ -149,15 +154,20 @@ export default function AdminConsole() {
 
       {tab === "orgs" && (
         <>
-          <div className="flex justify-end">
-            <button className="btn" onClick={() => { setShowNewOrg((v) => !v); setOrgForm((f) => ({ ...f, owner_password: genPassword() })); }}>+ New workspace</button>
+          <div className="flex justify-between">
+            <button className="btn-ghost" onClick={() => setShowArchived((v) => !v)}>
+              {showArchived ? "← Back to active" : `Show archived (${archivedCount})`}
+            </button>
+            {!showArchived && (
+              <button className="btn" onClick={() => { setShowNewOrg((v) => !v); setOrgForm((f) => ({ ...f, owner_password: genPassword() })); }}>+ New workspace</button>
+            )}
           </div>
-          {showNewOrg && (
+          {showNewOrg && !showArchived && (
             <div className="card space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
                 <div><label className="label">Business name</label>
                   <input className="input" value={orgForm.name} onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })} placeholder="Rahim Fashion House" /></div>
-                <div><label className="label">Slug (webhook URL e jabe)</label>
+                <div><label className="label">Slug (used in webhook URL)</label>
                   <input className="input font-mono" value={orgForm.slug} onChange={(e) => setOrgForm({ ...orgForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })} placeholder="rahim-fashion" /></div>
                 <div><label className="label">Admin email</label>
                   <input className="input" type="email" value={orgForm.owner_email} onChange={(e) => setOrgForm({ ...orgForm, owner_email: e.target.value })} /></div>
@@ -185,7 +195,7 @@ export default function AdminConsole() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line dark:divide-slate-800">
-                {orgs.map((o) => (
+                {visibleOrgs.map((o) => (
                   <tr key={o.id}>
                     <td className="td"><div className="font-medium">{o.name}</div><div className="font-mono text-2xs text-muted">{o.slug}</div></td>
                     <td className="td"><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
@@ -197,20 +207,39 @@ export default function AdminConsole() {
                     <td className="td text-2xs text-muted">{o.last_message_at ? new Date(o.last_message_at).toLocaleDateString() : "—"}</td>
                     <td className="td text-right">
                       <div className="inline-flex gap-1.5">
-                        {o.status === "suspended" ? (
-                          <button className="btn-ghost !px-2 !py-1 text-xs text-emerald-600" onClick={() => patchOrg(o.id, { status: "active" }, "Activated.")}>Activate</button>
+                        {o.status === "archived" ? (
+                          <button className="btn-ghost !px-2 !py-1 text-xs text-emerald-600"
+                            onClick={() => confirm(`Restore ${o.name}? The workspace becomes active again immediately.`) && patchOrg(o.id, { status: "active" }, "Restored.")}>
+                            Restore
+                          </button>
                         ) : (
-                          <button className="btn-ghost !px-2 !py-1 text-xs text-rose-600" onClick={() => confirm(`${o.name} suspend korbi?`) && patchOrg(o.id, { status: "suspended" }, "Suspended.")}>Suspend</button>
+                          <>
+                            {o.status === "suspended" ? (
+                              <button className="btn-ghost !px-2 !py-1 text-xs text-emerald-600" onClick={() => patchOrg(o.id, { status: "active" }, "Activated.")}>Activate</button>
+                            ) : (
+                              <button className="btn-ghost !px-2 !py-1 text-xs text-rose-600" onClick={() => confirm(`Suspend ${o.name}? Everyone in this workspace will be blocked until reactivated.`) && patchOrg(o.id, { status: "suspended" }, "Suspended.")}>Suspend</button>
+                            )}
+                            <button className="btn-ghost !px-2 !py-1 text-xs text-slate-500"
+                              onClick={() => confirm(`Archive ${o.name}? It will be hidden from this list and everyone will be blocked. All data stays intact and this can be undone anytime from "Show archived".`) && patchOrg(o.id, { status: "archived" }, "Archived.")}>
+                              Archive
+                            </button>
+                          </>
                         )}
-                        <button className="btn-ghost !px-2 !py-1 text-xs" onClick={() => {
-                          const v = prompt("Monthly amount (BDT):", String(o.monthly_amount));
-                          if (v != null && Number(v) >= 0) patchOrg(o.id, { monthly_amount: Number(v) }, "Amount updated.");
-                        }}>৳</button>
+                        {o.status !== "archived" && (
+                          <button className="btn-ghost !px-2 !py-1 text-xs" onClick={() => {
+                            const v = prompt("Monthly amount (BDT):", String(o.monthly_amount));
+                            if (v != null && Number(v) >= 0) patchOrg(o.id, { monthly_amount: Number(v) }, "Amount updated.");
+                          }}>৳</button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ))}
-                {!orgs.length && <tr><td className="td py-10 text-center text-muted" colSpan={9}>No workspaces yet — first client add kor!</td></tr>}
+                {!visibleOrgs.length && (
+                  <tr><td className="td py-10 text-center text-muted" colSpan={9}>
+                    {showArchived ? "No archived workspaces." : "No workspaces yet — add your first client!"}
+                  </td></tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -225,7 +254,7 @@ export default function AdminConsole() {
               <div><label className="label">Workspace</label>
                 <select className="input" value={invForm.org_id} onChange={(e) => setInvForm({ ...invForm, org_id: e.target.value })}>
                   <option value="">Select…</option>
-                  {orgs.map((o) => <option key={o.id} value={o.id}>{o.name} (৳{o.monthly_amount})</option>)}
+                  {orgs.filter((o) => o.status !== "archived").map((o) => <option key={o.id} value={o.id}>{o.name} (৳{o.monthly_amount})</option>)}
                 </select></div>
               <div><label className="label">Amount (BDT)</label>
                 <input type="number" className="input" value={invForm.amount} onChange={(e) => setInvForm({ ...invForm, amount: e.target.value })} /></div>
@@ -265,7 +294,7 @@ export default function AdminConsole() {
       {tab === "announce" && (
         <>
           <div className="card space-y-3">
-            <h2 className="text-sm font-bold">New global announcement (sob workspace dekhbe)</h2>
+            <h2 className="text-sm font-bold">New global announcement (visible to every workspace)</h2>
             <div className="grid gap-3 md:grid-cols-3">
               <div className="md:col-span-2"><label className="label">Title</label>
                 <input className="input" value={annForm.title} onChange={(e) => setAnnForm({ ...annForm, title: e.target.value })} placeholder="Maintenance Friday 2am" /></div>

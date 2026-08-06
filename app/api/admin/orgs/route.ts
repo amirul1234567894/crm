@@ -8,7 +8,7 @@ import { jsonError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
-/** Superadmin: sob workspace (H-11 fix — org_overview view, 1 query) */
+/** Superadmin: sob workspace (H-11 fix â€” org_overview view, 1 query) */
 export async function GET() {
   const guard = await requireOrg({ superadmin: true, allowSuspended: true });
   if ("error" in guard) return jsonError(guard.error, guard.status);
@@ -86,7 +86,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   const patch: Record<string, unknown> = {};
-  if (["active", "suspended", "trial"].includes(body.status)) patch.status = body.status;
+  if (["active", "suspended", "trial", "archived"].includes(body.status)) patch.status = body.status;
   if (typeof body.plan === "string" && body.plan.length <= 40) patch.plan = body.plan;
   if (typeof body.monthly_amount === "number" && body.monthly_amount >= 0)
     patch.monthly_amount = body.monthly_amount;
