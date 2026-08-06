@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireOrg } from "@/lib/tenant";
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { parseBody, createTeamMember, teamMemberPatch } from "@/lib/schemas";
 import { jsonError } from "@/lib/errors";
 
@@ -11,8 +11,18 @@ export async function GET() {
   const guard = await requireOrg({ manager: true });
   if ("error" in guard) return jsonError(guard.error, guard.status);
   const { ctx } = guard;
-  const db = createAdminClient();
-  const { data } = await db.rpc("staff_performance", { p_days: 7 });
+
+  // FIX: staff_performance() resolves org via current_org_id() -> auth.uid().
+  // The service-role admin client carries no JWT, so auth.uid() is always
+  // null there and this RPC silently returned zero rows for every org.
+  // The user-scoped (cookie session) client fixes this. The function is
+  // SECURITY DEFINER, so it still reads across all org members safely.
+  const db = createClient();
+  const { data, error } = await db.rpc("staff_performance", { p_days: 7 });
+  if (error) {
+    console.error(`[team] staff_performance failed for org ${ctx.orgId}:`, error.message);
+    return jsonError("Could not load the team. Please refresh the page.", 500);
+  }
   return NextResponse.json({ team: data ?? [], me: ctx.userId });
 }
 

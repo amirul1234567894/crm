@@ -31,12 +31,22 @@ export default function TeamPage() {
   const [form, setForm] = useState({ full_name: "", email: "", role: "agent", password: genPassword() });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/org/team");
-    if (!res.ok) return;
-    const j = await res.json();
-    setTeam(j.team ?? []); setMe(j.me ?? "");
+    setLoading(true);
+    setLoadError("");
+    try {
+      const res = await fetch("/api/org/team");
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setLoadError(j.error ?? "Team load kora gelo na."); return; }
+      setTeam(j.team ?? []); setMe(j.me ?? "");
+    } catch {
+      setLoadError("Network error — connection check kor.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -178,7 +188,15 @@ export default function TeamPage() {
                 )}
               </tr>
             ))}
-            {!team.length && <tr><td className="td py-10 text-center text-muted" colSpan={8}>Loading team…</td></tr>}
+            {loading && (
+              <tr><td className="td py-10 text-center text-muted" colSpan={8}>Loading team…</td></tr>
+            )}
+            {!loading && loadError && (
+              <tr><td className="td py-10 text-center text-rose-600" colSpan={8}>{loadError}</td></tr>
+            )}
+            {!loading && !loadError && !team.length && (
+              <tr><td className="td py-10 text-center text-muted" colSpan={8}>No team members yet.</td></tr>
+            )}
           </tbody>
         </table>
       </div>
