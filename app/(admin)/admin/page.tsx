@@ -68,7 +68,7 @@ export default function AdminConsole() {
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setMsg({ ok: false, text: j.error ?? "Create failed." });
-    setMsg({ ok: true, text: `Workspace ready! Send to the client — URL: ${location.origin}/login · Email: ${orgForm.owner_email} · Password: ${orgForm.owner_password}` });
+    setMsg({ ok: true, text: `Workspace ready! Send to the client â€” URL: ${location.origin}/login Â· Email: ${orgForm.owner_email} Â· Password: ${orgForm.owner_password}` });
     setShowNewOrg(false);
     setOrgForm({ name: "", slug: "", owner_email: "", owner_password: genPassword(), monthly_amount: 2000 });
     load();
@@ -81,6 +81,27 @@ export default function AdminConsole() {
     });
     if (!res.ok) return setMsg({ ok: false, text: "Update failed." });
     setMsg({ ok: true, text: okText }); load();
+  }
+
+  async function deleteWorkspace(o: Org) {
+    const typed = prompt(
+      `This PERMANENTLY deletes "${o.name}" and ALL its data (leads, conversations, messages, invoices, everything) plus every team member's login account. This cannot be undone.\n\nType the workspace slug to confirm: ${o.slug}`
+    );
+    if (typed === null) return;
+    if (typed !== o.slug) {
+      setMsg({ ok: false, text: "Slug did not match — nothing was deleted." });
+      return;
+    }
+    setBusy(true);
+    const res = await fetch("/api/admin/orgs", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ org_id: o.id, permanent_delete: true, confirm_slug: typed }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setMsg({ ok: false, text: j.error ?? "Delete failed." });
+    setMsg({ ok: true, text: `Permanently deleted "${o.name}". Removed ${j.removed_users ?? 0} login account(s).` });
+    load();
   }
 
   async function raiseInvoice() {
@@ -141,7 +162,7 @@ export default function AdminConsole() {
       <div className="flex gap-2 text-xs">
         {(["orgs", "billing", "announce"] as const).map((t) => (
           <button key={t} className={tab === t ? "btn" : "btn-ghost"} onClick={() => setTab(t)}>
-            {t === "orgs" ? `Workspaces (${activeCount})` : t === "billing" ? `Billing${submitted.length ? ` · ${submitted.length} pending` : ""}` : "Announcements"}
+            {t === "orgs" ? `Workspaces (${activeCount})` : t === "billing" ? `Billing${submitted.length ? ` Â· ${submitted.length} pending` : ""}` : "Announcements"}
           </button>
         ))}
       </div>
@@ -156,7 +177,7 @@ export default function AdminConsole() {
         <>
           <div className="flex justify-between">
             <button className="btn-ghost" onClick={() => setShowArchived((v) => !v)}>
-              {showArchived ? "← Back to active" : `Show archived (${archivedCount})`}
+              {showArchived ? "â† Back to active" : `Show archived (${archivedCount})`}
             </button>
             {!showArchived && (
               <button className="btn" onClick={() => { setShowNewOrg((v) => !v); setOrgForm((f) => ({ ...f, owner_password: genPassword() })); }}>+ New workspace</button>
@@ -174,14 +195,14 @@ export default function AdminConsole() {
                 <div><label className="label">Admin password (min 12)</label>
                   <div className="flex gap-2">
                     <input className="input font-mono" value={orgForm.owner_password} onChange={(e) => setOrgForm({ ...orgForm, owner_password: e.target.value })} />
-                    <button className="btn-ghost shrink-0" onClick={() => setOrgForm({ ...orgForm, owner_password: genPassword() })}>↻</button>
+                    <button className="btn-ghost shrink-0" onClick={() => setOrgForm({ ...orgForm, owner_password: genPassword() })}>â†»</button>
                   </div></div>
                 <div><label className="label">Monthly amount (BDT)</label>
                   <input type="number" className="input" value={orgForm.monthly_amount} onChange={(e) => setOrgForm({ ...orgForm, monthly_amount: +e.target.value })} /></div>
               </div>
               <div className="flex justify-end gap-2">
                 <button className="btn-ghost" onClick={() => setShowNewOrg(false)}>Cancel</button>
-                <button className="btn" disabled={busy} onClick={createWorkspace}>{busy ? "Creating…" : "Create workspace + admin"}</button>
+                <button className="btn" disabled={busy} onClick={createWorkspace}>{busy ? "Creatingâ€¦" : "Create workspace + admin"}</button>
               </div>
             </div>
           )}
@@ -199,19 +220,25 @@ export default function AdminConsole() {
                   <tr key={o.id}>
                     <td className="td"><div className="font-medium">{o.name}</div><div className="font-mono text-2xs text-muted">{o.slug}</div></td>
                     <td className="td"><span className={`badge ${statusBadge(o.status)}`}>{o.status}</span></td>
-                    <td className="td">৳{Number(o.monthly_amount).toLocaleString()}</td>
+                    <td className="td">à§³{Number(o.monthly_amount).toLocaleString()}</td>
                     <td className="td">{o.user_count}</td>
                     <td className="td">{o.lead_count}</td>
                     <td className="td">{o.open_conversations}</td>
                     <td className="td">{o.open_invoices > 0 ? <span className="font-semibold text-amber-600">{o.open_invoices}</span> : 0}</td>
-                    <td className="td text-2xs text-muted">{o.last_message_at ? new Date(o.last_message_at).toLocaleDateString() : "—"}</td>
+                    <td className="td text-2xs text-muted">{o.last_message_at ? new Date(o.last_message_at).toLocaleDateString() : "â€”"}</td>
                     <td className="td text-right">
                       <div className="inline-flex gap-1.5">
                         {o.status === "archived" ? (
-                          <button className="btn-ghost !px-2 !py-1 text-xs text-emerald-600"
-                            onClick={() => confirm(`Restore ${o.name}? The workspace becomes active again immediately.`) && patchOrg(o.id, { status: "active" }, "Restored.")}>
-                            Restore
-                          </button>
+                          <>
+                            <button className="btn-ghost !px-2 !py-1 text-xs text-emerald-600"
+                              onClick={() => confirm(`Restore ${o.name}? The workspace becomes active again immediately.`) && patchOrg(o.id, { status: "active" }, "Restored.")}>
+                              Restore
+                            </button>
+                            <button className="btn-ghost !px-2 !py-1 text-xs text-rose-700" disabled={busy}
+                              onClick={() => deleteWorkspace(o)}>
+                              Delete permanently
+                            </button>
+                          </>
                         ) : (
                           <>
                             {o.status === "suspended" ? (
@@ -229,7 +256,7 @@ export default function AdminConsole() {
                           <button className="btn-ghost !px-2 !py-1 text-xs" onClick={() => {
                             const v = prompt("Monthly amount (BDT):", String(o.monthly_amount));
                             if (v != null && Number(v) >= 0) patchOrg(o.id, { monthly_amount: Number(v) }, "Amount updated.");
-                          }}>৳</button>
+                          }}>à§³</button>
                         )}
                       </div>
                     </td>
@@ -237,7 +264,7 @@ export default function AdminConsole() {
                 ))}
                 {!visibleOrgs.length && (
                   <tr><td className="td py-10 text-center text-muted" colSpan={9}>
-                    {showArchived ? "No archived workspaces." : "No workspaces yet — add your first client!"}
+                    {showArchived ? "No archived workspaces." : "No workspaces yet â€” add your first client!"}
                   </td></tr>
                 )}
               </tbody>
@@ -253,8 +280,8 @@ export default function AdminConsole() {
             <div className="grid gap-3 md:grid-cols-3">
               <div><label className="label">Workspace</label>
                 <select className="input" value={invForm.org_id} onChange={(e) => setInvForm({ ...invForm, org_id: e.target.value })}>
-                  <option value="">Select…</option>
-                  {orgs.filter((o) => o.status !== "archived").map((o) => <option key={o.id} value={o.id}>{o.name} (৳{o.monthly_amount})</option>)}
+                  <option value="">Selectâ€¦</option>
+                  {orgs.filter((o) => o.status !== "archived").map((o) => <option key={o.id} value={o.id}>{o.name} (à§³{o.monthly_amount})</option>)}
                 </select></div>
               <div><label className="label">Amount (BDT)</label>
                 <input type="number" className="input" value={invForm.amount} onChange={(e) => setInvForm({ ...invForm, amount: e.target.value })} /></div>
@@ -273,11 +300,11 @@ export default function AdminConsole() {
                 {invoices.map((i) => (
                   <tr key={i.id} className={i.status === "submitted" ? "bg-sky-50/50 dark:bg-sky-950/20" : ""}>
                     <td className="td"><div className="font-medium">{i.invoice_no}</div>{i.due_date && <div className="text-2xs text-muted">due {i.due_date}</div>}</td>
-                    <td className="td text-xs">{i.organizations?.name ?? "—"}</td>
+                    <td className="td text-xs">{i.organizations?.name ?? "â€”"}</td>
                     <td className="td font-semibold">{i.currency} {Number(i.amount).toLocaleString()}</td>
                     <td className="td"><span className={`badge ${i.status === "paid" ? "bg-emerald-100 text-emerald-700" : i.status === "submitted" ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-700"}`}>{i.status}</span></td>
                     <td className="td text-xs">
-                      {i.txn_ref ? <><span className="font-mono">{i.txn_ref}</span> · {i.payment_method}{i.payer_note && <div className="text-2xs text-muted">{i.payer_note}</div>}</> : "—"}
+                      {i.txn_ref ? <><span className="font-mono">{i.txn_ref}</span> Â· {i.payment_method}{i.payer_note && <div className="text-2xs text-muted">{i.payer_note}</div>}</> : "â€”"}
                     </td>
                     <td className="td text-right">
                       {i.status === "submitted" && <button className="btn !px-2.5 !py-1 text-xs" onClick={() => markPaid(i.id)}>Verify & mark paid</button>}

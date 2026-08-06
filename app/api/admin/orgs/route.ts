@@ -8,7 +8,7 @@ import { jsonError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
 
-/** Superadmin: sob workspace (H-11 fix â€” org_overview view, 1 query) */
+/** Superadmin: sob workspace (H-11 fix ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â org_overview view, 1 query) */
 export async function GET() {
   const guard = await requireOrg({ superadmin: true, allowSuspended: true });
   if ("error" in guard) return jsonError(guard.error, guard.status);
@@ -80,9 +80,48 @@ export async function PATCH(req: NextRequest) {
 
   const db = createAdminClient();
 
-  if (body.delete === true) {
-    await db.from("organizations").delete().eq("id", orgId);
-    return NextResponse.json({ ok: true });
+  if (body.permanent_delete === true) {
+    const { data: org } = await db.from("organizations")
+      .select("status, slug, name").eq("id", orgId).maybeSingle();
+    if (!org) return jsonError("Workspace not found.", 404);
+
+    // Safety: must be archived first -- can't nuke an active/suspended client by accident
+    if (org.status !== "archived")
+      return jsonError("Archive the workspace first, then permanently delete it.", 400);
+
+    // Safety: typed confirmation must match the exact slug
+    const confirmSlug = String(body.confirm_slug ?? "");
+    if (confirmSlug !== org.slug)
+      return jsonError("Confirmation text did not match the workspace slug.", 400);
+
+    // Grab member user IDs BEFORE the cascade delete removes the profiles rows
+    const { data: members } = await db.from("profiles").select("id").eq("org_id", orgId);
+    const userIds = (members ?? []).map((m: any) => m.id as string);
+
+    // Deleting the org cascades through every org_id-referencing table (confirmed: all CASCADE)
+    const { error: delErr } = await db.from("organizations").delete().eq("id", orgId);
+    if (delErr) return jsonError("Could not delete the workspace.", 500);
+
+    // Cascade does NOT remove auth.users (reverse FK direction) -- remove login accounts explicitly
+    const authFailures: string[] = [];
+    for (const uid of userIds) {
+      const { error } = await db.auth.admin.deleteUser(uid);
+      if (error) authFailures.push(uid);
+    }
+
+    // Note: cannot log to activity_log here -- the org row (and its FK target)
+    // is already gone after the cascade delete. Console log is the audit trail
+    // for this specific action.
+    console.log(
+      `[admin] org permanently deleted by ${ctx.userId}: slug=${org.slug} name="${org.name}" ` +
+      `removed_users=${userIds.length} auth_failures=${JSON.stringify(authFailures)}`
+    );
+
+    return NextResponse.json({
+      ok: true,
+      removed_users: userIds.length,
+      auth_delete_failures: authFailures,
+    });
   }
 
   const patch: Record<string, unknown> = {};
