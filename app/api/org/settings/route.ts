@@ -72,7 +72,11 @@ export async function POST(req: NextRequest) {
   if (body.meta_access_token) secretsPatch.meta_access_token = encrypt(body.meta_access_token);
   if (body.meta_app_secret) secretsPatch.meta_app_secret = encrypt(body.meta_app_secret);
   if (body.regenerate_verify_token) secretsPatch.webhook_verify_token = encrypt(generateSecret(16));
-  if (body.regenerate_n8n_secret) secretsPatch.n8n_shared_secret = encrypt(generateSecret(24));
+  let regeneratedN8nSecret: string | null = null;
+  if (body.regenerate_n8n_secret) {
+    regeneratedN8nSecret = generateSecret(24);
+    secretsPatch.n8n_shared_secret = encrypt(regeneratedN8nSecret);
+  }
   if (Object.keys(secretsPatch).length) {
     const { error } = await db.from("org_secrets").update(secretsPatch).eq("org_id", ctx.orgId);
     if (error) return jsonError("Could not save credentials. Is SECRETS_KEY set?", 500);
@@ -84,5 +88,11 @@ export async function POST(req: NextRequest) {
     detail: { keys: [...Object.keys(settingsPatch), ...Object.keys(secretsPatch)] },
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    // Phase 2: this is the ONLY moment the raw secret is ever returned --
+    // GET always masks it afterward (Section 12). The org owner must copy
+    // it now to paste into n8n's header/credential config.
+    ...(regeneratedN8nSecret ? { n8n_shared_secret_plaintext: regeneratedN8nSecret } : {}),
+  });
 }
