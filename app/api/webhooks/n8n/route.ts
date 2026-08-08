@@ -9,6 +9,61 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 25;
 
 /**
+ * Phase 1, Section 33 (n8n-ready): before ANY automated send, re-check the
+ * lead's current opt-in/blocked status server-side -- a workflow built
+ * against this endpoint must not be able to message someone who opted out
+ * or was blocked after the workflow last synced its data.
+ */
+async function isSendBlocked(
+  db: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  recipient: string
+): Promise<boolean> {
+  const { data: lead } = await db
+    .from("leads")
+    .select("is_blocked, opt_in")
+    .eq("org_id", orgId)
+    .or(`channel_uid.eq.${recipient},phone.eq.${recipient}`)
+    .maybeSingle();
+  if (!lead) return false; // unknown recipient -- let the provider validate the number itself
+  return !!lead.is_blocked || lead.opt_in === false;
+}
+
+/**
+ * Phase 1, Section 24/33: workflow nodes retry on timeout. If the caller
+ * passes idempotency_key, reuse a prior successful result instead of
+ * sending again. Returns the stored result on a repeat call, or null the
+ * first time (caller should proceed and then call storeIdempotentResult).
+ */
+async function getIdempotentResult(
+  db: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  action: string,
+  key: string | undefined
+): Promise<any | null> {
+  if (!key) return null;
+  const { data } = await db
+    .from("idempotency_keys")
+    .select("result")
+    .eq("org_id", orgId).eq("action", action).eq("key", key)
+    .maybeSingle();
+  return data ? data.result : null;
+}
+
+async function storeIdempotentResult(
+  db: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  action: string,
+  key: string | undefined,
+  result: any
+): Promise<void> {
+  if (!key) return;
+  await db.from("idempotency_keys")
+    .insert({ org_id: orgId, action, key, result })
+    .then(() => {}, () => {}); // duplicate key = already stored by a concurrent retry, ignore
+}
+
+/**
  * n8n → CRM.
  * H-4 fix: org-scoped action e PER-ORG secret o cholbe (org_secrets.n8n_shared_secret);
  * global N8N_SHARED_SECRET fallback hishebe thake.
@@ -61,8 +116,16 @@ export async function POST(req: NextRequest) {
         const recipient = String(payload.recipient_id ?? phone);
         const text = String(payload.text ?? "").slice(0, 4096);
         const channel = String(payload.channel ?? "whatsapp");
+        const idemKey = payload.idempotency_key ? String(payload.idempotency_key) : undefined;
         if (!recipient || !text)
           return NextResponse.json({ error: "recipient + text required" }, { status: 400 });
+
+        const priorResult = await getIdempotentResult(db, creds.orgId, "send_message", idemKey);
+        if (priorResult) return NextResponse.json(priorResult);
+
+        if (await isSendBlocked(db, creds.orgId, recipient)) {
+          return NextResponse.json({ error: "Recipient is opted out or blocked." }, { status: 409 });
+        }
 
         let providerId = "";
         if (channel === "whatsapp") {
@@ -92,10 +155,21 @@ export async function POST(req: NextRequest) {
             last_message_text: text.slice(0, 200),
           }).eq("id", convId).eq("org_id", creds.orgId);
         }
-        return NextResponse.json({ ok: true, provider_msg_id: providerId });
+        const sendMsgResult = { ok: true, provider_msg_id: providerId };
+        await storeIdempotentResult(db, creds.orgId, "send_message", idemKey, sendMsgResult);
+        return NextResponse.json(sendMsgResult);
       }
 
       case "send_template": {
+        const templateIdemKey = payload.idempotency_key ? String(payload.idempotency_key) : undefined;
+        const templatePhone = String(payload.phone ?? "");
+
+        const priorTemplateResult = await getIdempotentResult(db, creds.orgId, "send_template", templateIdemKey);
+        if (priorTemplateResult) return NextResponse.json(priorTemplateResult);
+
+        if (await isSendBlocked(db, creds.orgId, templatePhone)) {
+          return NextResponse.json({ error: "Recipient is opted out or blocked." }, { status: 409 });
+        }
         const providerId = await sendTemplate(
           { phoneNumberId: creds.waPhoneNumberId, accessToken: creds.accessToken },
           String(payload.phone ?? ""),
@@ -103,7 +177,9 @@ export async function POST(req: NextRequest) {
           String(payload.language ?? "en"),
           Array.isArray(payload.params) ? payload.params.map(String).slice(0, 10) : []
         );
-        return NextResponse.json({ ok: true, provider_msg_id: providerId });
+        const sendTplResult = { ok: true, provider_msg_id: providerId };
+        await storeIdempotentResult(db, creds.orgId, "send_template", templateIdemKey, sendTplResult);
+        return NextResponse.json(sendTplResult);
       }
 
       case "update_lead": {
