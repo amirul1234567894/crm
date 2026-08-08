@@ -78,6 +78,22 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
       .update(recipientPatch)
       .eq("org_id", creds.orgId)
       .eq("provider_msg_id", st.id);
+
+    // Phase 2, Section 22: surface delivered/read/failed as events too, so
+    // n8n (or a future automation-reporting dashboard) can track a
+    // message's full lifecycle without polling. event_id includes the
+    // status so delivered and read on the same provider_msg_id are two
+    // distinct events, not deduped against each other -- but Meta re-sending
+    // the SAME status update twice will correctly no-op.
+    if (st.status === "delivered" || st.status === "read" || st.status === "failed") {
+      const eventType = st.status === "delivered" ? "message.delivered"
+        : st.status === "read" ? "message.read" : "message.failed";
+      await emitEvent({
+        orgId: creds.orgId, eventType,
+        eventId: `msg-${st.status}:${st.id}`,
+        data: { provider_msg_id: st.id },
+      });
+    }
   }
 
   for (const msg of value.messages ?? []) {
