@@ -2,21 +2,6 @@
 import { getOrgCredentials } from "@/lib/tenant";
 import { randomUUID } from "crypto";
 
-/**
- * Phase 2, Section 9-11: CRM -> n8n event system.
- *
- * Every important CRM action calls emitEvent() to record a stable,
- * idempotent event row AND push it to the org's configured n8n webhook
- * (org_settings.n8n_webhook_url), if one is set.
- *
- * Idempotency (Section 11): the (org_id, event_id) unique constraint means
- * calling emitEvent() twice with the same event_id only pushes to n8n once.
- *
- * Push is fire-and-forget (best effort, 8s timeout) -- Section 44: if
- * n8n/Render is down or slow, emitEvent() must never block or fail the
- * real CRM operation that triggered it.
- */
-
 export type EventType =
   | "lead.created"
   | "lead.updated"
@@ -62,7 +47,7 @@ export async function emitEvent(input: EmitEventInput): Promise<void> {
     }).select("id").single();
 
     if (error) {
-      if (error.code === "23505") return; // duplicate event_id -- already emitted+pushed once
+      if (error.code === "23505") return;
       console.error("emitEvent insert failed:", error.message);
       return;
     }
@@ -73,37 +58,50 @@ export async function emitEvent(input: EmitEventInput): Promise<void> {
   }
   if (!row) return;
 
-  // ---- push to n8n (best-effort, never throws) ----
+  // ---- push to n8n (best-effort, but now honestly tracked) ----
+  let deliveryError: string | null = null;
+  let delivered = false;
   try {
     const creds = await getOrgCredentials(input.orgId);
-    if (!creds?.n8nWebhookUrl) return;
-
-    await fetch(creds.n8nWebhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-crm-secret": creds.n8nSharedSecret || process.env.N8N_SHARED_SECRET || "",
-      },
-      body: JSON.stringify({
-        event_id: eventId,
-        event_type: input.eventType,
-        org_id: input.orgId,
-        org_slug: creds.slug,
-        lead_id: input.leadId ?? null,
-        conversation_id: input.conversationId ?? null,
-        message_id: input.messageId ?? null,
-        channel: input.channel ?? null,
-        source: input.source ?? null,
-        data: input.data ?? {},
-        timestamp: new Date().toISOString(),
-      }),
-      signal: AbortSignal.timeout(8000),
-    }).catch(() => {});
-
-    await db.from("automation_events")
-      .update({ delivered_to_n8n: true, delivered_at: new Date().toISOString() })
-      .eq("id", row.id);
+    if (!creds?.n8nWebhookUrl) {
+      deliveryError = "No n8n_webhook_url configured for this org.";
+    } else {
+      const res = await fetch(creds.n8nWebhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-crm-secret": creds.n8nSharedSecret || process.env.N8N_SHARED_SECRET || "",
+        },
+        body: JSON.stringify({
+          event_id: eventId,
+          event_type: input.eventType,
+          org_id: input.orgId,
+          org_slug: creds.slug,
+          lead_id: input.leadId ?? null,
+          conversation_id: input.conversationId ?? null,
+          message_id: input.messageId ?? null,
+          channel: input.channel ?? null,
+          source: input.source ?? null,
+          data: input.data ?? {},
+          timestamp: new Date().toISOString(),
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        delivered = true;
+      } else {
+        deliveryError = `n8n responded ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+      }
+    }
   } catch (err) {
-    console.error("emitEvent push to n8n failed:", err);
+    deliveryError = err instanceof Error ? err.message : String(err);
   }
+
+  await db.from("automation_events")
+    .update({
+      delivered_to_n8n: delivered,
+      delivered_at: delivered ? new Date().toISOString() : null,
+      delivery_error: deliveryError,
+    })
+    .eq("id", row.id);
 }
