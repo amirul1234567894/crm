@@ -159,13 +159,27 @@ export async function POST(req: NextRequest) {
   // via the message.sent event (which n8n might be slow to act on).
   const { data: leadForTakeover } = await db.from("leads")
     .select("automation_state").eq("id", conv.lead_id).maybeSingle();
+  let isHumanTakeover = false;
   if (leadForTakeover && ["active", "waiting"].includes(leadForTakeover.automation_state)) {
     leadPatch.automation_state = "human_handoff";
     leadPatch.automation_stopped_at = new Date().toISOString();
     leadPatch.stop_reason = "Agent manually replied (human takeover).";
+    isHumanTakeover = true;
   }
 
   await db.from("leads").update(leadPatch).eq("id", conv.lead_id);
+
+  // Phase 2, Section 9/19: a dedicated event (in addition to message.sent)
+  // so an n8n workflow can branch on "human took over" without having to
+  // inspect message.sent's source field itself.
+  if (isHumanTakeover) {
+    await emitEvent({
+      orgId: ctx.orgId, eventType: "conversation.human_takeover",
+      eventId: `human-takeover:${conv.lead_id}:${new Date().toISOString().slice(0, 16)}`,
+      leadId: conv.lead_id, conversationId, source: "manual_agent",
+      data: {},
+    });
+  }
 
   return NextResponse.json({ ok: true, message: msg });
 }
