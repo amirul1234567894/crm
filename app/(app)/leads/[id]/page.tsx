@@ -47,7 +47,16 @@ export default function LeadDetailPage() {
 
   async function save(patch: Record<string, unknown>) {
     const prevAssignedTo = lead?.assigned_to ?? null;
-    const { error } = await supabase.from("leads").update(patch).eq("id", id);
+
+    // Phase 2, Section 21: Won/Lost is a hard automation stop condition.
+    const fullPatch = { ...patch };
+    if ("status" in patch && (patch.status === "won" || patch.status === "lost")) {
+      fullPatch.automation_state = "stopped";
+      fullPatch.automation_stopped_at = new Date().toISOString();
+      fullPatch.stop_reason = `Lead marked ${patch.status}.`;
+    }
+
+    const { error } = await supabase.from("leads").update(fullPatch).eq("id", id);
     if (error) {
       alert("Could not save this change: " + error.message);
       return;
@@ -59,7 +68,7 @@ export default function LeadDetailPage() {
         changed_by: org.userId,
       });
     }
-    setLead((l: any) => ({ ...l, ...patch }));
+    setLead((l: any) => ({ ...l, ...fullPatch }));
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
     if ("assigned_to" in patch) load();
