@@ -28,6 +28,16 @@ export interface EmitEventInput {
   data?: Record<string, unknown>;
 }
 
+/**
+ * Free-tier automation hosts (e.g. Render's free plan) sleep after ~15 min
+ * of inactivity and can take 20-50s to wake up on the next request. 8s was
+ * too aggressive and made every "cold" push look like a connectivity
+ * failure. 25s covers a typical cold start; emitEvent() is always called
+ * fire-and-forget (never awaited by the caller's response), so this does
+ * not slow down the CRM action that triggered the event.
+ */
+const N8N_PUSH_TIMEOUT_MS = 25_000;
+
 export async function emitEvent(input: EmitEventInput): Promise<void> {
   const db = createAdminClient();
   const eventId = input.eventId ?? randomUUID();
@@ -58,7 +68,6 @@ export async function emitEvent(input: EmitEventInput): Promise<void> {
   }
   if (!row) return;
 
-  // ---- push to n8n (best-effort, but now honestly tracked) ----
   let deliveryError: string | null = null;
   let delivered = false;
   try {
@@ -85,7 +94,7 @@ export async function emitEvent(input: EmitEventInput): Promise<void> {
           data: input.data ?? {},
           timestamp: new Date().toISOString(),
         }),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(N8N_PUSH_TIMEOUT_MS),
       });
       if (res.ok) {
         delivered = true;

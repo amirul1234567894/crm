@@ -1,4 +1,4 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireOrg } from "@/lib/tenant";
 import { createAdminClient } from "@/lib/supabase/server";
 import { parseBody, createLead } from "@/lib/schemas";
@@ -6,6 +6,7 @@ import { emitEvent } from "@/lib/events";
 import { jsonError } from "@/lib/errors";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 /**
  * Phase 2, Section 12: manually-created leads (from the Leads page "+ New
