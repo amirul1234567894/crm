@@ -24,8 +24,10 @@ export default function LeadDetailPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDue, setTaskDue] = useState("");
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    setLoading(true);
     const [l, c, n, t, h, m, s] = await Promise.all([
       supabase.from("leads").select("*").eq("id", id).maybeSingle(),
       supabase.from("conversations").select("*").eq("lead_id", id).order("last_message_at", { ascending: false }),
@@ -38,15 +40,29 @@ export default function LeadDetailPage() {
     setLead(l.data); setConvs(c.data ?? []); setNotes(n.data ?? []);
     setTasks(t.data ?? []); setHistory(h.data ?? []); setMembers(m.data ?? []);
     setFieldDefs((s.data?.custom_field_defs as any[]) ?? []);
+    setLoading(false);
   }, [supabase, id]);
 
   useEffect(() => { load(); }, [load]);
 
   async function save(patch: Record<string, unknown>) {
-    await supabase.from("leads").update(patch).eq("id", id);
+    const prevAssignedTo = lead?.assigned_to ?? null;
+    const { error } = await supabase.from("leads").update(patch).eq("id", id);
+    if (error) {
+      alert("Could not save this change: " + error.message);
+      return;
+    }
+    if ("assigned_to" in patch && patch.assigned_to !== prevAssignedTo) {
+      await supabase.from("lead_ownership_history").insert({
+        org_id: org.orgId, lead_id: id,
+        from_user: prevAssignedTo, to_user: patch.assigned_to ?? null,
+        changed_by: org.userId,
+      });
+    }
     setLead((l: any) => ({ ...l, ...patch }));
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+    if ("assigned_to" in patch) load();
   }
 
   async function addNote() {
@@ -74,7 +90,17 @@ export default function LeadDetailPage() {
     members.find((m) => m.id === uid)?.full_name?.split(" ")[0] ??
     (uid ? "someone" : "unassigned");
 
-  if (!lead) return <div className="p-8 text-sm text-muted">Loading…</div>;
+  if (loading) return <div className="p-8 text-sm text-muted">Loading lead...</div>;
+  if (!lead) {
+    return (
+      <div className="p-8 space-y-3">
+        <Link href="/leads" className="text-xs text-brand hover:underline">&larr; Back to leads</Link>
+        <div className="card p-6 text-center text-sm text-muted">
+          Lead not found, or you do not have access to it.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4 lg:p-8">
