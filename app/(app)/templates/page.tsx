@@ -1,11 +1,11 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useOrg } from "@/components/OrgProvider";
 import { IconPlus } from "@/components/Icons";
 
-/** Quick replies (canned responses) + WhatsApp approved templates — ek page e duita tab. */
+/** Quick replies (canned responses) + WhatsApp approved templates -- ek page e duita tab. */
 export default function TemplatesPage() {
   const org = useOrg();
   const supabase = useMemo(() => createClient(), []);
@@ -13,6 +13,8 @@ export default function TemplatesPage() {
   const [canned, setCanned] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [editing, setEditing] = useState<any | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
   const isManager = org.role !== "agent";
 
   const load = useCallback(async () => {
@@ -23,6 +25,20 @@ export default function TemplatesPage() {
     setCanned(c.data ?? []); setTemplates(t.data ?? []);
   }, [supabase]);
   useEffect(() => { load(); }, [load]);
+
+  async function syncTemplates() {
+    setSyncing(true); setSyncMsg("");
+    try {
+      const res = await fetch("/api/templates/sync", { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      setSyncMsg(res.ok ? `Synced ${j.synced}/${j.total} templates from Meta.` : (j.error ?? "Sync failed."));
+    } catch {
+      setSyncMsg("Network error while syncing.");
+    } finally {
+      setSyncing(false);
+      load();
+    }
+  }
 
   async function saveCanned() {
     if (!editing?.title || !editing?.body) return;
@@ -52,7 +68,13 @@ export default function TemplatesPage() {
             <IconPlus className="h-4 w-4" /> New quick reply
           </button>
         )}
+        {tab === "wa" && isManager && (
+          <button className="btn ml-auto h-9 text-xs" disabled={syncing} onClick={syncTemplates}>
+            {syncing ? "Syncing..." : "Sync from Meta"}
+          </button>
+        )}
       </div>
+      {syncMsg && <p className="text-xs text-muted">{syncMsg}</p>}
 
       {tab === "canned" ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -77,7 +99,7 @@ export default function TemplatesPage() {
           ))}
           {canned.length === 0 && (
             <p className="text-xs text-muted">
-              Quick replies save typing in the inbox — agents type the shortcut (like /price) to insert them.
+              Quick replies save typing in the inbox -- agents type the shortcut (like /price) to insert them.
               Variables: {"{{name}}, {{phone}}, {{company}}"}.
             </p>
           )}
@@ -88,7 +110,7 @@ export default function TemplatesPage() {
             <thead>
               <tr className="border-b border-line dark:border-slate-800">
                 <th className="th">Name</th><th className="th">Language</th>
-                <th className="th">Category</th><th className="th">Body</th>
+                <th className="th">Category</th><th className="th">Status</th><th className="th">Body</th>
               </tr>
             </thead>
             <tbody>
@@ -97,13 +119,17 @@ export default function TemplatesPage() {
                   <td className="td font-medium">{t.name}</td>
                   <td className="td">{t.language}</td>
                   <td className="td capitalize">{t.category}</td>
+                  <td className="td">
+                    <span className={`badge ${t.status === "approved" ? "bg-emerald-100 text-emerald-700" : t.status === "rejected" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                      {t.status}
+                    </span>
+                  </td>
                   <td className="td max-w-xs truncate text-muted">{t.body_text}</td>
                 </tr>
               ))}
               {templates.length === 0 && (
-                <tr><td colSpan={4} className="td py-6 text-center text-muted">
-                  WhatsApp approved templates sync here. Add them in Meta Business Manager first,
-                  then insert rows via Settings or n8n.
+                <tr><td colSpan={5} className="td py-6 text-center text-muted">
+                  WhatsApp approved templates sync here. Click "Sync from Meta" above, or add them in Meta Business Manager first.
                 </td></tr>
               )}
             </tbody>
