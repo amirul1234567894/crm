@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
       org_id: ctx.orgId, conversation_id: conversationId, direction: "out",
       body, msg_type: templateId ? "template" : "text", status: "failed",
       error_text: msg, is_automated: false, sender_id: ctx.userId,
+      source: "manual_agent",
     });
     return jsonError(msg, 400);
   }
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
     body, msg_type: templateId ? "template" : "text",
     provider_msg_id: providerId, status: "sent",
     is_automated: false, sender_id: ctx.userId,
+    source: "manual_agent",
   }).select().single();
 
   // Conversation update + FIRST RESPONSE SLA stamp + auto-open
