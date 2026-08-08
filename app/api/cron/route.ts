@@ -30,7 +30,19 @@ export async function GET(req: NextRequest) {
   }
 
   const db = createAdminClient();
-  const report = { scheduled_sent: 0, scheduled_failed: 0, sla_breaches: 0 };
+  const report = { scheduled_sent: 0, scheduled_failed: 0, sla_breaches: 0, campaigns_activated: 0 };
+
+  // ---- 0. Scheduled campaigns (Phase 1, Section 15/29) ----
+  const { data: dueCampaigns } = await db
+    .from("campaigns")
+    .select("id")
+    .eq("status", "draft")
+    .not("scheduled_at", "is", null)
+    .lte("scheduled_at", new Date().toISOString());
+  for (const c of dueCampaigns ?? []) {
+    await db.from("campaigns").update({ status: "running" }).eq("id", c.id);
+    report.campaigns_activated++;
+  }
 
   // ---- 1. Scheduled messages ----
   const { data: due } = await db.rpc("claim_due_scheduled", { p_limit: 25 });

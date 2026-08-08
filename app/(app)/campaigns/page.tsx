@@ -40,6 +40,8 @@ export default function CampaignsPage() {
   const runningRef = useRef(false);
 
   const [name, setName] = useState("");
+  const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
+  const [scheduledAt, setScheduledAt] = useState("");
   const [mode, setMode] = useState<"template" | "text">("template");
   const [templateId, setTemplateId] = useState("");
   const [bodyText, setBodyText] = useState("");
@@ -128,6 +130,10 @@ export default function CampaignsPage() {
     setBusy("create");
     const db = createClient();
 
+    if (scheduleMode === "later" && !scheduledAt) return setErr("Schedule time lagbe.");
+    if (scheduleMode === "later" && new Date(scheduledAt).getTime() < Date.now() + 60_000)
+      return setErr("Schedule time ta at least 1 minute future-e hote hobe.");
+
     const { data: campaign, error } = await db
       .from("campaigns")
       .insert({
@@ -136,6 +142,7 @@ export default function CampaignsPage() {
         body_text: mode === "text" ? bodyText.trim() : null,
         variable_mapping: mode === "template" ? variableMapping : [],
         created_by: org.userId, status: "draft",
+        scheduled_at: scheduleMode === "later" ? new Date(scheduledAt).toISOString() : null,
       })
       .select("id").single();
     if (error || !campaign) { setBusy(null); return setErr("Campaign toiri hoy ni."); }
@@ -159,6 +166,7 @@ export default function CampaignsPage() {
 
     setShowNew(false); setName(""); setBodyText(""); setTemplateId("");
     setFilters(EMPTY_FILTERS); setPreview(null); setVariableMapping([]);
+    setScheduleMode("now"); setScheduledAt("");
     setBusy(null); load();
   }
 
@@ -343,10 +351,20 @@ export default function CampaignsPage() {
               <textarea className="input min-h-[90px]" value={bodyText} onChange={(e) => setBodyText(e.target.value)} />
             </div>
           )}
+          <div className="rounded-lg border border-line p-3 dark:border-slate-700">
+            <div className="mb-2 flex gap-2 text-xs">
+              <button className={scheduleMode === "now" ? "btn" : "btn-ghost"} onClick={() => setScheduleMode("now")}>Send now</button>
+              <button className={scheduleMode === "later" ? "btn" : "btn-ghost"} onClick={() => setScheduleMode("later")}>Schedule for later</button>
+            </div>
+            {scheduleMode === "later" && (
+              <input className="input" type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            )}
+          </div>
+
           <div className="flex justify-end gap-2">
             <button className="btn-ghost" onClick={() => setShowNew(false)}>Cancel</button>
             <button className="btn" disabled={busy === "create"} onClick={createCampaign}>
-              {busy === "create" ? "Creating..." : "Create draft"}
+              {busy === "create" ? "Creating..." : scheduleMode === "later" ? "Schedule draft" : "Create draft"}
             </button>
           </div>
         </div>
