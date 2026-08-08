@@ -15,11 +15,17 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [rt, setRt] = useState<any>(null);
   const [tasksDue, setTasksDue] = useState(0);
+  const [loadErr, setLoadErr] = useState("");
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.rpc("dashboard_stats").then(({ data }) => setStats(data as Stats));
-    supabase.rpc("response_time_stats", { p_days: 7 }).then(({ data }) => setRt(data));
+    supabase.rpc("dashboard_stats").then(({ data, error }) => {
+      if (error) setLoadErr("Could not load dashboard stats: " + error.message);
+      else setStats(data as Stats);
+    });
+    supabase.rpc("response_time_stats", { p_days: 7 }).then(({ data, error }) => {
+      if (!error) setRt(data);
+    });
     supabase.from("tasks").select("id", { count: "exact", head: true })
       .eq("status", "open").lte("due_at", new Date().toISOString())
       .then(({ count }) => setTasksDue(count ?? 0));
@@ -47,6 +53,11 @@ export default function DashboardPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 lg:p-8">
       <h1 className="text-lg font-bold tracking-tight">Dashboard</h1>
+      {loadErr && (
+        <div className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:bg-rose-950">
+          {loadErr}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {cards.map((c) => (
