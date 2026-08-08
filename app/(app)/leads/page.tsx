@@ -137,18 +137,16 @@ function LeadsInner() {
 
   async function createLead() {
     if (!newLead.name && !newLead.phone) return;
-    const { error } = await supabase.from("leads").insert({
-      org_id: org.orgId, source: "manual", status: "new",
-      name: newLead.name || null, phone: newLead.phone || null,
-      email: newLead.email || null, company: newLead.company || null,
-      channel_uid: newLead.phone || null,
+    // Phase 2: goes through /api/leads (not a direct browser insert) so the
+    // lead.created event can be emitted server-side and pushed to n8n --
+    // the same event a webhook-created lead gets.
+    const res = await fetch("/api/leads", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newLead),
     });
-    if (error) {
-      alert(
-        error.code === "23505"
-          ? "A lead with this phone number already exists in this workspace."
-          : "Could not create the lead: " + error.message
-      );
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(j.error ?? "Could not create the lead.");
       return;
     }
     setShowNew(false);

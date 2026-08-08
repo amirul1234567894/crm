@@ -161,6 +161,13 @@ export const campaignSend = z.object({
   campaignId: uuid,
 });
 
+export const createLead = z.object({
+  name: z.string().trim().max(120).optional(),
+  phone: z.string().trim().max(30).optional(),
+  email: z.string().trim().email().max(160).optional().or(z.literal("")),
+  company: z.string().trim().max(120).optional(),
+}).refine((d) => d.name || d.phone, { message: "Name or phone is required." });
+
 export const mergeLeads = z.object({
   primaryId: uuid,
   duplicateId: uuid,
