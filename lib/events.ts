@@ -28,15 +28,28 @@ export interface EmitEventInput {
   data?: Record<string, unknown>;
 }
 
-/**
- * Free-tier automation hosts (e.g. Render's free plan) sleep after ~15 min
- * of inactivity and can take 20-50s to wake up on the next request. 8s was
- * too aggressive and made every "cold" push look like a connectivity
- * failure. 25s covers a typical cold start; emitEvent() is always called
- * fire-and-forget (never awaited by the caller's response), so this does
- * not slow down the CRM action that triggered the event.
- */
 const N8N_PUSH_TIMEOUT_MS = 25_000;
+
+/**
+ * Node's fetch() throws a generic "fetch failed" TypeError for almost any
+ * network-level problem (DNS failure, connection refused, TLS error,
+ * timeout) -- the actual reason lives in error.cause, one level down.
+ * Surface that so delivery_error is actually diagnosable instead of always
+ * reading the same useless "fetch failed" string.
+ */
+function describeFetchError(err: unknown): string {
+  if (err instanceof Error) {
+    const cause = (err as Error & { cause?: unknown }).cause;
+    if (cause instanceof Error) {
+      return `${err.message} | cause: ${cause.message}`;
+    }
+    if (cause) {
+      return `${err.message} | cause: ${JSON.stringify(cause)}`;
+    }
+    return err.message;
+  }
+  return String(err);
+}
 
 export async function emitEvent(input: EmitEventInput): Promise<void> {
   const db = createAdminClient();
@@ -103,7 +116,7 @@ export async function emitEvent(input: EmitEventInput): Promise<void> {
       }
     }
   } catch (err) {
-    deliveryError = err instanceof Error ? err.message : String(err);
+    deliveryError = describeFetchError(err);
   }
 
   await db.from("automation_events")
