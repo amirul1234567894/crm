@@ -151,8 +151,21 @@ export async function POST(req: NextRequest) {
   await db.from("conversations").update(convPatch).eq("id", conversationId);
 
   // Lead activity
-  await db.from("leads").update({ last_activity_at: new Date().toISOString() })
-    .eq("id", conv.lead_id);
+  const leadPatch: Record<string, unknown> = { last_activity_at: new Date().toISOString() };
+
+  // Phase 2, Section 19: an agent replying while automation is still
+  // active/waiting on this lead is a human takeover -- stop the automation
+  // state here so /api/leads/:id/status reflects it immediately, not just
+  // via the message.sent event (which n8n might be slow to act on).
+  const { data: leadForTakeover } = await db.from("leads")
+    .select("automation_state").eq("id", conv.lead_id).maybeSingle();
+  if (leadForTakeover && ["active", "waiting"].includes(leadForTakeover.automation_state)) {
+    leadPatch.automation_state = "human_handoff";
+    leadPatch.automation_stopped_at = new Date().toISOString();
+    leadPatch.stop_reason = "Agent manually replied (human takeover).";
+  }
+
+  await db.from("leads").update(leadPatch).eq("id", conv.lead_id);
 
   return NextResponse.json({ ok: true, message: msg });
 }

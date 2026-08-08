@@ -428,7 +428,11 @@ async function handleOptOut(
 
   await db
     .from("leads")
-    .update({ opt_in: false, tags: Array.from(new Set([...(lead.tags ?? []), "opted-out"])) })
+    .update({
+      opt_in: false, tags: Array.from(new Set([...(lead.tags ?? []), "opted-out"])),
+      automation_state: "opted_out", automation_stopped_at: new Date().toISOString(),
+      stop_reason: "Customer opted out via keyword.",
+    })
     .eq("id", lead.id);
 
   await db.from("activity_log").insert({
