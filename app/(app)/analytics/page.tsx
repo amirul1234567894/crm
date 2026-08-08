@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useOrg } from "@/components/OrgProvider";
 
 export default function AnalyticsPage() {
+  const org = useOrg();
   const [days, setDays] = useState(7);
   const [rt, setRt] = useState<any>(null);
   const [src, setSrc] = useState<any>(null);
@@ -16,6 +18,16 @@ export default function AnalyticsPage() {
     supabase.rpc("lead_source_stats", { p_days: days }).then(({ data }) => setSrc(data));
     supabase.rpc("staff_performance", { p_days: days }).then(({ data }) => setStaff(data ?? []));
   }, [days]);
+
+  if (org.role === "agent" && !org.isSuperadmin) {
+    return (
+      <div className="p-6">
+        <div className="card max-w-md text-sm">
+          Analytics is only visible to managers and the workspace admin.
+        </div>
+      </div>
+    );
+  }
 
   const kpis = [
     { label: "Avg first response", value: rt?.avg_first_response_min != null ? `${rt.avg_first_response_min} min` : "—" },
