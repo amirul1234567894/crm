@@ -11,16 +11,22 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [view, setView] = useState<"mine" | "all" | "done">("mine");
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState("");
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setLoadErr("");
     let q = supabase.from("tasks")
       .select("*, leads(id, name, phone)")
       .order("due_at", { ascending: true, nullsFirst: false }).limit(300);
     if (view === "mine") q = q.eq("assigned_to", org.userId).eq("status", "open");
     if (view === "all") q = q.eq("status", "open");
     if (view === "done") q = q.eq("status", "done");
-    const { data } = await q;
+    const { data, error } = await q;
+    if (error) setLoadErr("Could not load tasks: " + error.message);
     setTasks(data ?? []);
+    setLoading(false);
   }, [supabase, view, org.userId]);
 
   useEffect(() => { load(); }, [load]);
@@ -79,7 +85,11 @@ export default function TasksPage() {
             </div>
           );
         })}
-        {tasks.length === 0 && <p className="p-6 text-center text-xs text-muted">Nothing here. Create tasks from a lead page.</p>}
+        {loading && <p className="p-6 text-center text-xs text-muted">Loading tasks...</p>}
+        {!loading && loadErr && <p className="p-6 text-center text-xs text-rose-600">{loadErr}</p>}
+        {!loading && !loadErr && tasks.length === 0 && (
+          <p className="p-6 text-center text-xs text-muted">Nothing here. Create tasks from a lead page.</p>
+        )}
       </div>
     </div>
   );
