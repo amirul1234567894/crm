@@ -5,6 +5,7 @@ import { sendTemplate, sendText } from "@/lib/meta/whatsapp";
 import { parseBody, campaignSend } from "@/lib/schemas";
 import { sanitizeProviderError, jsonError } from "@/lib/errors";
 import { fillVariables } from "@/lib/personalise";
+import { resolveTemplateParams, type VariableMapping } from "@/lib/templateVariables";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -66,9 +67,17 @@ export async function POST(req: NextRequest) {
     try {
       const to = lead.channel_uid || lead.phone || "";
       if (tpl) {
+        // Phase 1, Section 19: real per-template variable-to-field mapping.
+        // Falls back to the old "fill with lead name" behaviour for any
+        // campaign created before this feature existed (empty/missing mapping).
+        const mapping: VariableMapping[] =
+          Array.isArray(campaign.variable_mapping) && campaign.variable_mapping.length
+            ? campaign.variable_mapping
+            : Array(tpl.variables ?? 0).fill({ source: "name" } as VariableMapping);
+        const bodyParams = resolveTemplateParams(mapping, lead);
         await sendTemplate(
           { phoneNumberId: creds.waPhoneNumberId, accessToken: creds.accessToken },
-          to, tpl.name, tpl.language ?? "en", []
+          to, tpl.name, tpl.language ?? "en", bodyParams
         );
       } else {
         const body = fillVariables(campaign.body_text ?? "", {
