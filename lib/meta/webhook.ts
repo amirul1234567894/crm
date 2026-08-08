@@ -423,6 +423,16 @@ async function handleOptOut(
     detail: { channel, text },
   });
 
+  // Phase 2, Section 20: n8n must stop/cancel all active automation for this
+  // lead the moment this fires -- keyed on lead.id so a duplicate STOP
+  // message doesn't re-emit (idempotent no-op via the unique constraint).
+  await emitEvent({
+    orgId: creds.orgId, eventType: "contact.opted_out",
+    eventId: `opted-out:${lead.id}`,
+    leadId: lead.id, conversationId: conv.id, channel,
+    data: { text },
+  });
+
   await deliver(
     db,
     creds,
@@ -501,7 +511,7 @@ async function insertInbound(
   conversationId: string,
   m: { body: string; msg_type: string; provider_msg_id?: string; media_id?: string | null }
 ): Promise<boolean> {
-  const { error } = await db.from("messages").insert({
+  const { data: inserted, error } = await db.from("messages").insert({
     org_id: orgId,
     conversation_id: conversationId,
     direction: "in",
@@ -510,11 +520,24 @@ async function insertInbound(
     provider_msg_id: m.provider_msg_id,
     media_url: m.media_id,
     status: "delivered",
-  });
+  }).select("id").single();
 
   // 23505 = unique violation = age-i eshechilo
   if (error && error.code === "23505") return false;
-  if (error) console.error("insertInbound:", error.message);
+  if (error) { console.error("insertInbound:", error.message); return true; }
+
+  // Phase 2, Section 18: this is what tells n8n to stop pending follow-ups.
+  // event_id keyed on provider_msg_id (when present) so a Meta webhook retry
+  // of the SAME inbound message can't emit message.received twice -- but we
+  // still emit even without one (some inbound types may lack it) since the
+  // insert-level 23505 guard above already prevented this from being a
+  // duplicate delivery.
+  await emitEvent({
+    orgId, eventType: "message.received",
+    eventId: m.provider_msg_id ? `msg-received:${m.provider_msg_id}` : undefined,
+    conversationId, messageId: inserted?.id ?? null,
+    data: { body: m.body, msg_type: m.msg_type },
+  });
   return true;
 }
 
