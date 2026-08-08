@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { sendText, normalisePhone } from "@/lib/meta/whatsapp";
 import { sendDirectMessage, fetchProfile } from "@/lib/meta/messenger";
 import { isWithinBusinessHours, type OrgCredentials } from "@/lib/tenant";
+import { emitEvent } from "@/lib/events";
 
 type Channel = "whatsapp" | "facebook" | "instagram";
 
@@ -568,6 +569,18 @@ async function upsertLead(
     })
     .select()
     .single();
+
+  if (!error && data) {
+    // Phase 2, Section 12/13: this is the trigger point for n8n's
+    // new-lead automation. event_id is derived from the new lead's own id
+    // (which only exists once, exactly once) rather than random, so a
+    // retry of this exact insert can never double-emit.
+    await emitEvent({
+      orgId, eventType: "lead.created", eventId: `lead-created:${data.id}`,
+      leadId: data.id, channel: input.source, source: input.source,
+      data: { name: data.name, phone: data.phone, campaign_name: data.campaign_name },
+    });
+  }
 
   if (error) {
     // Race: duita webhook ek shathe eshe gache
