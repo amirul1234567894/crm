@@ -27,7 +27,13 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isPublic = PUBLIC.some((p) => path.startsWith(p));
+  // /api/leads/<id>/status is n8n-facing (per-org secret, no session) --
+  // but plain /api/leads/* prefixing would also expose /api/leads/import,
+  // /merge, /duplicates (which require an agent session) and /api/leads
+  // itself, so this is matched precisely instead of via the PUBLIC prefix
+  // list above.
+  const isN8nLeadStatus = /^\/api\/leads\/[^/]+\/status$/.test(path);
+  const isPublic = PUBLIC.some((p) => path.startsWith(p)) || isN8nLeadStatus;
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
