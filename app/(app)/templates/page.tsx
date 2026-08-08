@@ -15,6 +15,7 @@ export default function TemplatesPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
+  const [loadErr, setLoadErr] = useState("");
   const isManager = org.role !== "agent";
 
   const load = useCallback(async () => {
@@ -22,6 +23,8 @@ export default function TemplatesPage() {
       supabase.from("canned_responses").select("*").order("category").order("title"),
       supabase.from("templates").select("*").order("name"),
     ]);
+    if (c.error || t.error) setLoadErr("Could not load templates: " + (c.error?.message || t.error?.message));
+    else setLoadErr("");
     setCanned(c.data ?? []); setTemplates(t.data ?? []);
   }, [supabase]);
   useEffect(() => { load(); }, [load]);
@@ -48,8 +51,10 @@ export default function TemplatesPage() {
       shortcut: editing.shortcut ? (editing.shortcut.startsWith("/") ? editing.shortcut : "/" + editing.shortcut) : null,
       is_active: true, created_by: org.userId,
     };
-    if (editing.id) await supabase.from("canned_responses").update(row).eq("id", editing.id);
-    else await supabase.from("canned_responses").insert(row);
+    const { error } = editing.id
+      ? await supabase.from("canned_responses").update(row).eq("id", editing.id)
+      : await supabase.from("canned_responses").insert(row);
+    if (error) { alert("Could not save: " + error.message); return; }
     setEditing(null); load();
   }
 
@@ -75,6 +80,7 @@ export default function TemplatesPage() {
         )}
       </div>
       {syncMsg && <p className="text-xs text-muted">{syncMsg}</p>}
+      {loadErr && <p className="text-xs text-rose-600">{loadErr}</p>}
 
       {tab === "canned" ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -90,7 +96,11 @@ export default function TemplatesPage() {
                 <div className="mt-2 flex gap-2">
                   <button className="text-2xs font-semibold text-brand hover:underline" onClick={() => setEditing(c)}>Edit</button>
                   <button className="text-2xs font-semibold text-rose-600 hover:underline"
-                    onClick={async () => { await supabase.from("canned_responses").delete().eq("id", c.id); load(); }}>
+                    onClick={async () => {
+                      if (!confirm(`Delete "${c.title}"? This cannot be undone.`)) return;
+                      await supabase.from("canned_responses").delete().eq("id", c.id);
+                      load();
+                    }}>
                     Delete
                   </button>
                 </div>
