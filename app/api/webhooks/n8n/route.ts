@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
           await db.from("messages").insert({
             org_id: creds.orgId, conversation_id: convId, direction: "out",
             body: text, msg_type: "text", provider_msg_id: providerId,
-            is_automated: true, status: "sent",
+            is_automated: true, status: "sent", source: "automation",
           });
           await db.from("conversations").update({
             last_message_at: new Date().toISOString(),
@@ -177,6 +177,32 @@ export async function POST(req: NextRequest) {
           String(payload.language ?? "en"),
           Array.isArray(payload.params) ? payload.params.map(String).slice(0, 10) : []
         );
+
+        // Phase 2, Section 3/28: log this to messages too -- Phase 1 never
+        // recorded n8n's send_template calls anywhere, so they were
+        // invisible in the inbox and in reporting. Resolve the conversation
+        // the same way lib/meta/webhook.ts does: by lead + whatsapp channel.
+        const { data: tplConvId } = await db
+          .from("leads").select("id").eq("org_id", creds.orgId)
+          .or(`channel_uid.eq.${templatePhone},phone.eq.${templatePhone}`)
+          .maybeSingle();
+        if (tplConvId) {
+          const { data: tplConv } = await db.from("conversations")
+            .select("id").eq("org_id", creds.orgId).eq("lead_id", tplConvId.id)
+            .eq("channel", "whatsapp").maybeSingle();
+          if (tplConv) {
+            await db.from("messages").insert({
+              org_id: creds.orgId, conversation_id: tplConv.id, direction: "out",
+              body: `[template: ${String(payload.template_name ?? "")}]`,
+              msg_type: "template", provider_msg_id: providerId,
+              is_automated: true, status: "sent", source: "automation",
+            });
+            await db.from("conversations").update({
+              last_message_at: new Date().toISOString(),
+            }).eq("id", tplConv.id);
+          }
+        }
+
         const sendTplResult = { ok: true, provider_msg_id: providerId };
         await storeIdempotentResult(db, creds.orgId, "send_template", templateIdemKey, sendTplResult);
         return NextResponse.json(sendTplResult);

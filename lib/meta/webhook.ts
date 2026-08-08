@@ -358,6 +358,7 @@ async function deliver(db: any, creds: OrgCredentials, ctx: ReplyCtx, text: stri
       provider_msg_id: providerId,
       is_automated: true,
       status: "sent",
+      source: "automation",
     });
 
     await db
@@ -375,6 +376,7 @@ async function deliver(db: any, creds: OrgCredentials, ctx: ReplyCtx, text: stri
       is_automated: true,
       status: "failed",
       error_text: err.message,
+      source: "automation",
     });
   }
 }
