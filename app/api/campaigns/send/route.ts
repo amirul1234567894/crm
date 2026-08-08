@@ -109,6 +109,26 @@ export async function POST(req: NextRequest) {
       await db.from("campaign_recipients").update({
         status: "sent", sent_at: new Date().toISOString(), provider_msg_id: providerId || null,
       }).eq("id", r.id);
+
+      // Phase 2, Section 3/4: broadcast sends must also land in the messages
+      // table (source="broadcast") so they show up in the customer's
+      // conversation history and n8n can see them as CRM events, not just
+      // in campaign_recipients (which is broadcast-reporting-only).
+      const { data: bconv } = await db.from("conversations")
+        .select("id").eq("org_id", ctx.orgId).eq("lead_id", lead.id)
+        .eq("channel", "whatsapp").maybeSingle();
+      if (bconv) {
+        await db.from("messages").insert({
+          org_id: ctx.orgId, conversation_id: bconv.id, direction: "out",
+          body: tpl ? (tpl.body_text ?? tpl.name) : (campaign.body_text ?? ""),
+          msg_type: tpl ? "template" : "text",
+          provider_msg_id: providerId || null, status: "sent",
+          is_automated: true, source: "broadcast",
+        });
+        await db.from("conversations").update({
+          last_message_at: new Date().toISOString(),
+        }).eq("id", bconv.id);
+      }
       sent++;
     } catch (err) {
       // Phase 1, Section 28: retry system. Transient errors (rate limit, timeout,
