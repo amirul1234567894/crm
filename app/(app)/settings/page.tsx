@@ -62,7 +62,14 @@ export default function SettingsPage() {
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setMsg({ ok: false, text: j.error ?? "Save failed." });
-    setMsg({ ok: true, text: "Saved." });
+    if (j.n8n_shared_secret_plaintext) {
+      setMsg({
+        ok: true,
+        text: `Saved. New n8n shared secret (copy this into your n8n workflow now -- it will not be shown again): ${j.n8n_shared_secret_plaintext}`,
+      });
+    } else {
+      setMsg({ ok: true, text: "Saved." });
+    }
     setSecretsForm({ meta_access_token: "", meta_app_secret: "" });
     load();
   }
