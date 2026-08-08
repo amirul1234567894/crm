@@ -7,6 +7,7 @@ import { parseBody, sendMessage } from "@/lib/schemas";
 import { limits } from "@/lib/ratelimit";
 import { sanitizeProviderError, jsonError } from "@/lib/errors";
 import { fillVariables } from "@/lib/personalise";
+import { emitEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,19 @@ export async function POST(req: NextRequest) {
     is_automated: false, sender_id: ctx.userId,
     source: "manual_agent",
   }).select().single();
+
+  // Phase 2, Section 19: an agent manually replying is the CRM-side signal
+  // for "human takeover" -- n8n should treat message.sent with
+  // source=manual_agent as a stop-automation trigger for this conversation,
+  // same as it treats message.received for a customer reply.
+  if (msg) {
+    await emitEvent({
+      orgId: ctx.orgId, eventType: "message.sent",
+      eventId: `msg-sent:${msg.id}`,
+      conversationId, messageId: msg.id, source: "manual_agent",
+      data: { body: body.slice(0, 200) },
+    });
+  }
 
   // Conversation update + FIRST RESPONSE SLA stamp + auto-open
   const convPatch: Record<string, unknown> = {
