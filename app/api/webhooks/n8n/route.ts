@@ -127,6 +127,25 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: "Recipient is opted out or blocked." }, { status: 409 });
         }
 
+        // Phase 2, Section 22/16: track automation lifecycle on the lead so
+        // /api/leads/:id/status can answer "has automation started, how
+        // many follow-ups so far" for future recheck calls.
+        const leadIdForState = payload.lead_id ? String(payload.lead_id) : undefined;
+        if (leadIdForState) {
+          const { data: existingLead } = await db.from("leads")
+            .select("automation_started_at").eq("id", leadIdForState)
+            .eq("org_id", creds.orgId).maybeSingle();
+          const statePatch: Record<string, unknown> = {
+            automation_state: "active",
+          };
+          if (!existingLead?.automation_started_at) {
+            statePatch.automation_started_at = new Date().toISOString();
+          } else {
+            statePatch.follow_up_count = (payload.follow_up_number as number | undefined) ?? undefined;
+          }
+          await db.from("leads").update(statePatch).eq("id", leadIdForState).eq("org_id", creds.orgId);
+        }
+
         let providerId = "";
         if (channel === "whatsapp") {
           providerId = await sendText(
