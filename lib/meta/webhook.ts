@@ -64,6 +64,19 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
       .update({ status: st.status, error_text: st.errors?.[0]?.title ?? null })
       .eq("org_id", creds.orgId)
       .eq("provider_msg_id", st.id);
+
+    // Phase 1, Section 26: broadcast sends write to campaign_recipients, not
+    // messages -- mirror the same status update there so Delivered/Read counts
+    // on the Campaigns and Broadcast Details pages actually move.
+    const recipientPatch: Record<string, unknown> = { status: st.status };
+    if (st.status === "delivered") recipientPatch.delivered_at = new Date().toISOString();
+    if (st.status === "read") recipientPatch.read_at = new Date().toISOString();
+    if (st.status === "failed") recipientPatch.error_text = st.errors?.[0]?.title ?? null;
+    await db
+      .from("campaign_recipients")
+      .update(recipientPatch)
+      .eq("org_id", creds.orgId)
+      .eq("provider_msg_id", st.id);
   }
 
   for (const msg of value.messages ?? []) {

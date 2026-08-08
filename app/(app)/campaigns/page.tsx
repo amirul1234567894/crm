@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import { useOrg } from "@/components/OrgProvider";
 import { resolveTemplateParams, renderTemplatePreview, defaultMapping, type VariableMapping } from "@/lib/templateVariables";
 
 interface Campaign {
   id: string; name: string; channel: string; status: string;
   template_id: string | null; body_text: string | null; created_at: string;
-  total?: number; sent?: number; failed?: number;
+  total?: number; sent?: number; delivered?: number; read?: number; failed?: number;
 }
 interface Template { id: string; name: string; status: string; body_text: string | null; variables: number }
 interface Member { id: string; full_name: string | null; email: string | null }
@@ -67,6 +68,8 @@ export default function CampaignsPage() {
         const mine = (recs ?? []).filter((r: any) => r.campaign_id === c.id);
         c.total = mine.length;
         c.sent = mine.filter((r: any) => r.status === "sent").length;
+        c.delivered = mine.filter((r: any) => r.status === "delivered").length;
+        c.read = mine.filter((r: any) => r.status === "read").length;
         c.failed = mine.filter((r: any) => r.status === "failed").length;
       }
     }
@@ -354,14 +357,15 @@ export default function CampaignsPage() {
           <thead className="border-b border-line dark:border-slate-800">
             <tr>
               <th className="th">Campaign</th><th className="th">Status</th>
-              <th className="th">Progress</th><th className="th">Failed</th><th className="th text-right">Actions</th>
+              <th className="th">Progress</th><th className="th">Delivered</th><th className="th">Read</th>
+              <th className="th">Failed</th><th className="th text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line dark:divide-slate-800">
             {rows.map((c) => (
               <tr key={c.id}>
                 <td className="td">
-                  <div className="font-medium">{c.name}</div>
+                  <Link href={`/campaigns/${c.id}`} className="font-medium text-brand hover:underline">{c.name}</Link>
                   <div className="text-2xs text-muted">{new Date(c.created_at).toLocaleString()}</div>
                 </td>
                 <td className="td"><span className={`badge ${badge(c.status)}`}>{c.status}</span></td>
@@ -375,6 +379,8 @@ export default function CampaignsPage() {
                     </div>
                   ) : <span className="text-2xs text-muted">no recipients</span>}
                 </td>
+                <td className="td tabular-nums">{c.delivered || 0}</td>
+                <td className="td tabular-nums">{c.read || 0}</td>
                 <td className="td text-rose-600">{c.failed || 0}</td>
                 <td className="td text-right">
                   {c.status !== "done" && (
@@ -392,7 +398,7 @@ export default function CampaignsPage() {
               </tr>
             ))}
             {!rows.length && (
-              <tr><td className="td py-10 text-center text-muted" colSpan={5}>No campaigns yet.</td></tr>
+              <tr><td className="td py-10 text-center text-muted" colSpan={7}>No campaigns yet.</td></tr>
             )}
           </tbody>
         </table>
