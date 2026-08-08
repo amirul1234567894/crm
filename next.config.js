@@ -60,6 +60,10 @@ module.exports = {
   // "X-Powered-By: Next.js" header sorao — version disclosure
   poweredByHeader: false,
 
+  experimental: {
+    instrumentationHook: true,
+  },
+
   async headers() {
     return [
       {

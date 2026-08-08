@@ -3,6 +3,7 @@ import { getOrgCredentialsBySlug } from "@/lib/tenant";
 import { verifyMetaSignature, safeEqual } from "@/lib/crypto";
 import { processMetaWebhook } from "@/lib/meta/webhook";
 import { limits } from "@/lib/ratelimit";
+import * as Sentry from "@sentry/nextjs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 25;
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     await processMetaWebhook(creds, body);
   } catch (err: any) {
     console.error(`[${creds.slug}] webhook error:`, err?.message);
+    Sentry.captureException(err, { extra: { orgSlug: creds.slug } });
   }
   return NextResponse.json({ ok: true });
 }
