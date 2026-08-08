@@ -112,6 +112,7 @@ export default function LeadDetailPage() {
         {saved && <span className="text-xs text-emerald-600">Saved ✓</span>}
         {lead.is_spam && <span className="badge bg-amber-100 text-amber-700">spam</span>}
         {lead.is_blocked && <span className="badge bg-slate-200 text-slate-600">blocked</span>}
+        {!lead.opt_in && <span className="badge bg-rose-100 text-rose-700">opted out</span>}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -187,6 +188,14 @@ export default function LeadDetailPage() {
               <button className="btn-ghost flex-1 text-xs"
                 onClick={() => save({ is_spam: !lead.is_spam })}>
                 {lead.is_spam ? "Not spam" : "Mark spam"}
+              </button>
+              <button className="btn-ghost flex-1 text-xs"
+                onClick={() => {
+                  if (lead.opt_in && !confirm("Mark this contact as opted out? They will be excluded from broadcasts and future messages by default."))
+                    return;
+                  save({ opt_in: !lead.opt_in });
+                }}>
+                {lead.opt_in ? "Mark opted out" : "Opt back in"}
               </button>
             </div>
           </div>
