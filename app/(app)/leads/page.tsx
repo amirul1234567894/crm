@@ -273,9 +273,25 @@ function LeadsInner() {
                     })} />
                 </td>
                 <td className="td">
-                  <Link href={`/leads/${l.id}`} className="font-semibold text-brand hover:underline">
-                    {l.name || l.phone || l.email || "Unknown"}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/leads/${l.id}`} className="font-semibold text-brand hover:underline">
+                      {l.name || l.phone || l.email || "Unknown"}
+                    </Link>
+                    {org.role !== "agent" && (
+                      <button
+                        className="text-2xs text-rose-600 hover:underline"
+                        title="Delete lead"
+                        onClick={async () => {
+                          if (!confirm(`Delete "${l.name || l.phone || "this lead"}"? This cannot be undone.`)) return;
+                          const { error } = await supabase.from("leads").delete().eq("id", l.id);
+                          if (error) { alert("Could not delete: " + error.message); return; }
+                          load();
+                        }}
+                      >
+                        delete
+                      </button>
+                    )}
+                  </div>
                   <div className="text-2xs text-muted">{l.phone} {l.company ? `· ${l.company}` : ""}</div>
                 </td>
                 <td className="td"><span className={`badge ${STATUS_BADGE[l.status] ?? ""}`}>{l.status}</span></td>
