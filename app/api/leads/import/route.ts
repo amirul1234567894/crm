@@ -70,8 +70,23 @@ export async function POST(req: NextRequest) {
   }
 
   for (let i = 0; i < batch.length; i += 500) {
-    const { error } = await db.from("leads").insert(batch.slice(i, i + 500));
-    if (error) return jsonError("Import failed part-way. Check the file and retry.", 500);
+    const slice = batch.slice(i, i + 500);
+    const { error } = await db.from("leads").insert(slice);
+    if (error) {
+      if (error.code !== "23505") {
+        return jsonError("Import failed part-way. Check the file and retry.", 500);
+      }
+      // A row in this batch collided with a lead created concurrently
+      // (e.g. a webhook lead, or another import) between our duplicate
+      // pre-check above and this insert. Retry the batch one row at a
+      // time so a single collision doesn't discard otherwise-valid leads.
+      for (const row of slice) {
+        const { error: rowErr } = await db.from("leads").insert(row);
+        if (!rowErr) continue;
+        if (rowErr.code === "23505") { skipped++; inserted--; continue; }
+        return jsonError("Import failed part-way. Check the file and retry.", 500);
+      }
+    }
   }
 
   await db.from("activity_log").insert({
