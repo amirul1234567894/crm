@@ -34,7 +34,11 @@ export async function POST(req: NextRequest) {
   const lead = conv.leads as any;
 
   if (lead?.is_blocked) return jsonError("This contact is blocked. Unblock to reply.", 409);
-  if (!lead?.opt_in && !templateId)
+  // Phase 1, Section 14: opt-out applies to ALL outbound messages, including
+  // templates. A closed 24h window is exactly the situation where a template
+  // is used to re-engage someone -- that is the proactive/marketing case
+  // opt-out exists to prevent, so it must not be exempted here.
+  if (!lead?.opt_in)
     return jsonError("This contact opted out of messages.", 409);
 
   // OWNERSHIP LOCK — onno keu ei thread e active thakle reply block
