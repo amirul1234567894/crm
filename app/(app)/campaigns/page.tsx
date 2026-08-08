@@ -164,6 +164,12 @@ export default function CampaignsPage() {
       }
     }
 
+    await db.from("activity_log").insert({
+      org_id: org.orgId, actor: org.userId, action: "broadcast_created",
+      entity: "campaign", entity_id: campaign.id,
+      detail: { name: name.trim(), eligible: preview.eligible },
+    });
+
     setShowNew(false); setName(""); setBodyText(""); setTemplateId("");
     setFilters(EMPTY_FILTERS); setPreview(null); setVariableMapping([]);
     setScheduleMode("now"); setScheduledAt("");
@@ -174,6 +180,10 @@ export default function CampaignsPage() {
     if (runningRef.current) return;
     runningRef.current = true;
     setBusy(id); setErr("");
+    await createClient().from("activity_log").insert({
+      org_id: org.orgId, actor: org.userId, action: "broadcast_launched",
+      entity: "campaign", entity_id: id, detail: {},
+    });
     try {
       for (let i = 0; i < 200; i++) {
         const res = await fetch("/api/campaigns/send", {
@@ -195,6 +205,10 @@ export default function CampaignsPage() {
 
   async function pauseCampaign(id: string) {
     await createClient().from("campaigns").update({ status: "paused" }).eq("id", id);
+    await createClient().from("activity_log").insert({
+      org_id: org.orgId, actor: org.userId, action: "broadcast_paused",
+      entity: "campaign", entity_id: id, detail: {},
+    });
     load();
   }
 
