@@ -44,6 +44,26 @@ export async function GET(req: NextRequest) {
     report.campaigns_activated++;
   }
 
+  // ---- 0b. Push forward any campaign still "running" (scheduled-just-activated,
+  // or a browser tab that closed mid-send) -- process one chunk per cron tick
+  // until it's done. Section 15/29: scheduled broadcasts must not get stuck.
+  const { data: runningCampaigns } = await db
+    .from("campaigns")
+    .select("id")
+    .eq("status", "running");
+  for (const c of runningCampaigns ?? []) {
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+      await fetch(`${appUrl}/api/campaigns/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-cron-secret": expected },
+        body: JSON.stringify({ campaignId: c.id }),
+      }).catch(() => {});
+    } catch {
+      // best-effort -- next cron tick will retry
+    }
+  }
+
   // ---- 1. Scheduled messages ----
   const { data: due } = await db.rpc("claim_due_scheduled", { p_limit: 25 });
   for (const s of due ?? []) {

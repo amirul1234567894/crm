@@ -16,9 +16,27 @@ export const maxDuration = 60;
  * ek shathe cholleo same recipient ke duibar message jabe na.
  */
 export async function POST(req: NextRequest) {
-  const guard = await requireOrg({ manager: true });
-  if ("error" in guard) return jsonError(guard.error, guard.status);
-  const { ctx } = guard;
+  // Allow the cron job to drive scheduled/in-progress campaigns without a
+  // logged-in user session (Section 15/29 -- scheduled broadcasts run headless).
+  const cronSecret = req.headers.get("x-cron-secret") ?? "";
+  const isCron = !!process.env.CRON_SECRET && cronSecret === process.env.CRON_SECRET;
+
+  let orgId: string;
+  let userIdForLog: string | undefined;
+  if (isCron) {
+    const parsedCron = parseBody(campaignSend, await req.clone().json().catch(() => null));
+    if (!parsedCron.ok) return jsonError(parsedCron.error);
+    const { data: campaignRow } = await createAdminClient()
+      .from("campaigns").select("org_id").eq("id", parsedCron.data.campaignId).maybeSingle();
+    if (!campaignRow) return jsonError("Campaign not found.", 404);
+    orgId = campaignRow.org_id;
+  } else {
+    const guard = await requireOrg({ manager: true });
+    if ("error" in guard) return jsonError(guard.error, guard.status);
+    orgId = guard.ctx.orgId;
+    userIdForLog = guard.ctx.userId;
+  }
+  const ctx = { orgId, userId: userIdForLog, name: "" } as any;
 
   const parsed = parseBody(campaignSend, await req.json().catch(() => null));
   if (!parsed.ok) return jsonError(parsed.error);

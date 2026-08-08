@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -129,7 +129,7 @@ export default function TemplatesPage() {
               ))}
               {templates.length === 0 && (
                 <tr><td colSpan={5} className="td py-6 text-center text-muted">
-                  WhatsApp approved templates sync here. Click "Sync from Meta" above, or add them in Meta Business Manager first.
+                  WhatsApp approved templates sync here. Click &quot;Sync from Meta&quot; above, or add them in Meta Business Manager first.
                 </td></tr>
               )}
             </tbody>
