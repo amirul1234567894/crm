@@ -35,6 +35,8 @@ function LeadsInner() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [savedFilters, setSavedFilters] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState("");
   const [f, setF] = useState({
     q: params.get("q") ?? "", status: params.get("status") ?? "",
     source: "", priority: "", assigned: "", showSpam: false,
@@ -47,6 +49,8 @@ function LeadsInner() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setLoadErr("");
     let q = supabase.from("leads").select("*")
       .order("created_at", { ascending: false }).limit(500);
     if (f.status) q = q.eq("status", f.status);
@@ -56,9 +60,15 @@ function LeadsInner() {
     else if (f.assigned === "none") q = q.is("assigned_to", null);
     if (!f.showSpam) q = q.eq("is_spam", false);
     if (f.q) q = q.or(`name.ilike.%${f.q}%,phone.ilike.%${f.q}%,email.ilike.%${f.q}%,company.ilike.%${f.q}%`);
-    const { data } = await q;
-    setLeads((data as Lead[]) ?? []);
+    const { data, error } = await q;
+    if (error) {
+      setLoadErr("Could not load leads: " + error.message);
+      setLeads([]);
+    } else {
+      setLeads((data as Lead[]) ?? []);
+    }
     setSel(new Set());
+    setLoading(false);
   }, [supabase, f, org.userId]);
 
   useEffect(() => { load(); }, [load]);
@@ -127,12 +137,20 @@ function LeadsInner() {
 
   async function createLead() {
     if (!newLead.name && !newLead.phone) return;
-    await supabase.from("leads").insert({
+    const { error } = await supabase.from("leads").insert({
       org_id: org.orgId, source: "manual", status: "new",
       name: newLead.name || null, phone: newLead.phone || null,
       email: newLead.email || null, company: newLead.company || null,
       channel_uid: newLead.phone || null,
     });
+    if (error) {
+      alert(
+        error.code === "23505"
+          ? "A lead with this phone number already exists in this workspace."
+          : "Could not create the lead: " + error.message
+      );
+      return;
+    }
     setShowNew(false);
     setNewLead({ name: "", phone: "", email: "", company: "" });
     load();
@@ -284,7 +302,13 @@ function LeadsInner() {
                 </td>
               </tr>
             ))}
-            {leads.length === 0 && (
+            {loading && (
+              <tr><td className="td py-8 text-center text-muted" colSpan={9}>Loading leads...</td></tr>
+            )}
+            {!loading && loadErr && (
+              <tr><td className="td py-8 text-center text-rose-600" colSpan={9}>{loadErr}</td></tr>
+            )}
+            {!loading && !loadErr && leads.length === 0 && (
               <tr><td className="td py-8 text-center text-muted" colSpan={9}>No leads match these filters.</td></tr>
             )}
           </tbody>
