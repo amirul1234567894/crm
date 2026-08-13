@@ -4,6 +4,7 @@ import { getOrgCredentialsBySlug } from "@/lib/tenant";
 import { safeEqual } from "@/lib/crypto";
 import { sendText, sendTemplate } from "@/lib/meta/whatsapp";
 import { sendDirectMessage } from "@/lib/meta/messenger";
+import { limits } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 25;
@@ -14,6 +15,16 @@ export const maxDuration = 25;
  * against this endpoint must not be able to message someone who opted out
  * or was blocked after the workflow last synced its data.
  */
+// Phase 2, Section 13/14: automated sends must never bypass the CRM's own
+// view of automation state, even if the n8n workflow's /status recheck was
+// skipped or raced. "active"/"waiting" are the only states where an
+// automated message is expected to go out -- everything else (stopped,
+// paused, completed, human_handoff, opted_out, failed) means someone/
+// something already decided this lead should not receive more automated
+// messages, and this endpoint must honour that regardless of what n8n
+// thinks its own workflow state is.
+const AUTOMATION_SEND_ALLOWED_STATES = ["active", "waiting"];
+
 async function isSendBlocked(
   db: ReturnType<typeof createAdminClient>,
   orgId: string,
@@ -21,12 +32,13 @@ async function isSendBlocked(
 ): Promise<boolean> {
   const { data: lead } = await db
     .from("leads")
-    .select("is_blocked, opt_in")
+    .select("is_blocked, opt_in, automation_state")
     .eq("org_id", orgId)
     .or(`channel_uid.eq.${recipient},phone.eq.${recipient}`)
     .maybeSingle();
   if (!lead) return false; // unknown recipient -- let the provider validate the number itself
-  return !!lead.is_blocked || lead.opt_in === false;
+  if (lead.is_blocked || lead.opt_in === false) return true;
+  return !AUTOMATION_SEND_ALLOWED_STATES.includes(lead.automation_state);
 }
 
 /**
@@ -64,10 +76,10 @@ async function storeIdempotentResult(
 }
 
 /**
- * n8n → CRM.
+ * n8n -> CRM.
  * H-4 fix: org-scoped action e PER-ORG secret o cholbe (org_secrets.n8n_shared_secret);
  * global N8N_SHARED_SECRET fallback hishebe thake.
- * list_orgs (sob client er list) SUDHU global secret e — per-org secret e na.
+ * list_orgs (sob client er list) SUDHU global secret e -- na oita kono org secret e na.
  */
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-crm-secret") ?? "";
@@ -108,6 +120,12 @@ export async function POST(req: NextRequest) {
   if (creds.status === "suspended") {
     return NextResponse.json({ error: "Workspace suspended" }, { status: 402 });
   }
+
+  // Fix 2 (rate limiting): this endpoint sends real WhatsApp/Messenger
+  // messages -- if the shared secret ever leaks (n8n workflow export files
+  // carry credentials), this caps the blast radius per org.
+  const rl = await limits.n8n(creds.orgId);
+  if (!rl.success) return NextResponse.json({ error: "Rate limited. Slow down." }, { status: 429 });
 
   try {
     switch (action) {
@@ -258,7 +276,7 @@ export async function POST(req: NextRequest) {
             await db.from("notifications").insert({
               org_id: creds.orgId, user_id: m.id, type: "sla_breach",
               title: `SLA breached (${b.kind === "first_response" ? "first response" : "resolution"})`,
-              body: `${b.lead_name ?? "A conversation"} — ${b.minutes_over} min over`,
+              body: `${b.lead_name ?? "A conversation"} -- ${b.minutes_over} min over`,
               link: `/inbox?c=${b.conversation_id}`,
             });
           }
