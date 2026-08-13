@@ -13,9 +13,10 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Campaign chunk processor. Frontend/cron bar bar call kore jotokkhon done na hoy.
- * H-9 fix: claim_campaign_chunk() FOR UPDATE SKIP LOCKED -- duita worker
- * ek shathe cholleo same recipient ke duibar message jabe na.
+ * Campaign chunk processor. Frontend/cron calls this repeatedly until the
+ * campaign is done.
+ * H-9 fix: claim_campaign_chunk() FOR UPDATE SKIP LOCKED -- two workers
+ * running at the same time can never send the same recipient twice.
  */
 export async function POST(req: NextRequest) {
   // Allow the cron job to drive scheduled/in-progress campaigns without a
