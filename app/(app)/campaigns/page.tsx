@@ -94,10 +94,10 @@ export default function CampaignsPage() {
       try {
         const body = {
           ...filters,
-          // Fix 4 (Phase 1, Section 19): once a template + its variable
-          // mapping are picked, the preview must also exclude leads whose
-          // mapped fields (e.g. company) are empty for that lead -- sending
-          // a template with a visible blank is worse than not sending it.
+          // Once a template + its variable mapping are picked, the preview
+          // must also exclude leads whose mapped fields (e.g. company) are
+          // empty for that lead -- sending a template with a visible blank
+          // is worse than not sending it.
           variableMapping: mode === "template" && templateId ? variableMapping : undefined,
         };
         const res = await fetch("/api/campaigns/preview", {
@@ -122,7 +122,8 @@ export default function CampaignsPage() {
     return () => clearTimeout(t);
   }, [showNew, filters, mode, templateId, variableMapping]);
 
-  // Template pick change hole -- variable mapping reset kore template-er variable count onujayi
+  // When the selected template changes, reset the variable mapping to match
+  // that template's variable count.
   useEffect(() => {
     if (mode !== "template" || !templateId) { setVariableMapping([]); return; }
     const t = templates.find((x) => x.id === templateId);
@@ -131,16 +132,16 @@ export default function CampaignsPage() {
 
   async function createCampaign() {
     setErr("");
-    if (!name.trim()) return setErr("Campaign name lagbe.");
-    if (mode === "template" && !templateId) return setErr("Template select kor.");
-    if (mode === "text" && !bodyText.trim()) return setErr("Message text lagbe.");
-    if (!preview || preview.eligible === 0) return setErr("Kono eligible recipient nai -- audience filter change koro.");
+    if (!name.trim()) return setErr("A campaign name is required.");
+    if (mode === "template" && !templateId) return setErr("Please select a template.");
+    if (mode === "text" && !bodyText.trim()) return setErr("Message text is required.");
+    if (!preview || preview.eligible === 0) return setErr("No eligible recipients -- adjust the audience filters.");
     setBusy("create");
     const db = createClient();
 
-    if (scheduleMode === "later" && !scheduledAt) return setErr("Schedule time lagbe.");
+    if (scheduleMode === "later" && !scheduledAt) return setErr("A schedule time is required.");
     if (scheduleMode === "later" && new Date(scheduledAt).getTime() < Date.now() + 60_000)
-      return setErr("Schedule time ta at least 1 minute future-e hote hobe.");
+      return setErr("The schedule time must be at least 1 minute in the future.");
 
     const { data: campaign, error } = await db
       .from("campaigns")
@@ -153,7 +154,7 @@ export default function CampaignsPage() {
         scheduled_at: scheduleMode === "later" ? new Date(scheduledAt).toISOString() : null,
       })
       .select("id").single();
-    if (error || !campaign) { setBusy(null); return setErr("Campaign toiri hoy ni."); }
+    if (error || !campaign) { setBusy(null); return setErr("The campaign could not be created."); }
 
     const { data: leads, error: leadsErr } = await db.from("leads").select("id")
       .in("id", preview.eligibleLeadIds);
@@ -178,9 +179,9 @@ export default function CampaignsPage() {
       detail: { name: name.trim(), eligible: preview.eligible },
     });
 
-    // Phase 1, Section 33: fire-and-forget -- if this fails (network blip,
-    // n8n misconfigured), the campaign itself is already created and must
-    // not be blocked or rolled back on account of an event-notification hiccup.
+    // Fire-and-forget -- if this fails (network blip, n8n misconfigured),
+    // the campaign itself is already created and must not be blocked or
+    // rolled back on account of an event-notification hiccup.
     fetch("/api/campaigns/notify-created", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -229,9 +230,9 @@ export default function CampaignsPage() {
     load();
   }
 
-  // Phase 3, Section 43/48: cancel is permanent (unlike Pause, which is
-  // resumable) -- still-pending recipients are marked cancelled server-side
-  // via cancel_campaign(), so they can never be accidentally resumed later.
+  // Cancel is permanent (unlike Pause, which is resumable) -- still-pending
+  // recipients are marked cancelled server-side via cancel_campaign(), so
+  // they can never be accidentally resumed later.
   async function cancelCampaign(id: string, name: string) {
     if (!confirm(`Cancel "${name}"? Recipients who have not been sent to yet will NOT receive this broadcast. This cannot be undone.`)) return;
     setBusy(id); setErr("");
@@ -261,7 +262,7 @@ export default function CampaignsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold">Campaigns</h1>
-          <p className="text-xs text-muted">WhatsApp broadcast -- opted-out ar blocked contact automatic baad jay.</p>
+          <p className="text-xs text-muted">WhatsApp broadcast -- opted-out and blocked contacts are automatically excluded.</p>
         </div>
         <button className="btn" onClick={() => setShowNew((v) => !v)}>+ New campaign</button>
       </div>
@@ -273,7 +274,7 @@ export default function CampaignsPage() {
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <label className="label">Name</label>
-              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Eid offer blast" />
+              <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Summer sale blast" />
             </div>
           </div>
 
@@ -308,7 +309,7 @@ export default function CampaignsPage() {
               </div>
               <div>
                 <label className="label">Campaign name contains</label>
-                <input className="input" value={filters.campaignName} onChange={(e) => setFilters((f) => ({ ...f, campaignName: e.target.value }))} placeholder="eid-2026" />
+                <input className="input" value={filters.campaignName} onChange={(e) => setFilters((f) => ({ ...f, campaignName: e.target.value }))} placeholder="summer-2026" />
               </div>
               <div>
                 <label className="label">Created from</label>
@@ -354,7 +355,7 @@ export default function CampaignsPage() {
                   <option value="">Select...</option>
                   {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
-                <p className="mt-1 text-2xs text-muted">24h window er baire template chhara message jabe na (Meta rule).</p>
+                <p className="mt-1 text-2xs text-muted">Outside the 24-hour window, messages can only be sent using a template (Meta rule).</p>
               </div>
 
               {selectedTemplate && (selectedTemplate.variables ?? 0) > 0 && (
@@ -396,7 +397,7 @@ export default function CampaignsPage() {
             </div>
           ) : (
             <div>
-              <label className="label">Message ({"{{customer_name}}"} use korte parbi)</label>
+              <label className="label">Message (you can use {"{{customer_name}}"})</label>
               <textarea className="input min-h-[90px]" value={bodyText} onChange={(e) => setBodyText(e.target.value)} />
             </div>
           )}
@@ -485,7 +486,7 @@ export default function CampaignsPage() {
               <div><b>Recipients:</b> {confirmCampaign.total ?? 0}</div>
               <div><b>Already sent:</b> {confirmCampaign.sent ?? 0}</div>
             </div>
-            <p className="text-2xs text-muted">Ei button chaplei message pathano shuru hobe -- pathanor por thamano jabe na (shudhu pause).</p>
+            <p className="text-2xs text-muted">Clicking this button will start sending messages immediately -- it cannot be stopped once started (only paused).</p>
             <div className="flex gap-2">
               <button className="btn-ghost flex-1" onClick={() => setConfirmCampaign(null)}>Cancel</button>
               <button className="btn flex-1" onClick={() => { const id = confirmCampaign.id; setConfirmCampaign(null); runCampaign(id); }}>

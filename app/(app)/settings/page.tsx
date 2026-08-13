@@ -79,7 +79,7 @@ export default function SettingsPage() {
     load();
   }
 
-  // Phase 3, Section 5/41: safe, read-only Meta connection check.
+  // Safe, read-only Meta connection check.
   const [testBusy, setTestBusy] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -107,13 +107,13 @@ export default function SettingsPage() {
     return (
       <div className="p-6">
         <div className="card max-w-md text-sm">
-          Settings sudhu workspace owner er jonno. Team page dekhte chaile{" "}
-          <Link className="text-brand underline" href="/settings/team">ekhane</Link> ja.
+          Settings are only accessible to the workspace owner. To view the Team page,{" "}
+          <Link className="text-brand underline" href="/settings/team">click here</Link>.
         </div>
       </div>
     );
   }
-  if (!data) return <div className="p-6 text-sm text-muted">Loading…</div>;
+  if (!data) return <div className="p-6 text-sm text-muted">Loading...</div>;
 
   const set = (k: string, v: any) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -122,9 +122,9 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold">Settings</h1>
-          <p className="text-xs text-muted">Workspace, Meta connection, SLA ar auto-message configuration.</p>
+          <p className="text-xs text-muted">Workspace, Meta connection, SLA, and auto-message configuration.</p>
         </div>
-        <Link href="/settings/team" className="btn-ghost">Team →</Link>
+        <Link href="/settings/team" className="btn-ghost">Team &rarr;</Link>
       </div>
 
       {msg && (
@@ -166,11 +166,11 @@ export default function SettingsPage() {
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <label className="label">Access token <span className="font-normal text-muted">(current: {data.secrets.meta_access_token || "not set"})</span></label>
-            <input className="input font-mono" type="password" placeholder="notun token dile replace hobe" value={secretsForm.meta_access_token} onChange={(e) => setSecretsForm({ ...secretsForm, meta_access_token: e.target.value })} />
+            <input className="input font-mono" type="password" placeholder="Enter a new token to replace it" value={secretsForm.meta_access_token} onChange={(e) => setSecretsForm({ ...secretsForm, meta_access_token: e.target.value })} />
           </div>
           <div>
             <label className="label">App secret <span className="font-normal text-muted">(current: {data.secrets.meta_app_secret || "not set"})</span></label>
-            <input className="input font-mono" type="password" placeholder="notun secret dile replace hobe" value={secretsForm.meta_app_secret} onChange={(e) => setSecretsForm({ ...secretsForm, meta_app_secret: e.target.value })} />
+            <input className="input font-mono" type="password" placeholder="Enter a new secret to replace it" value={secretsForm.meta_app_secret} onChange={(e) => setSecretsForm({ ...secretsForm, meta_app_secret: e.target.value })} />
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line p-3 dark:border-slate-700">
@@ -201,9 +201,9 @@ export default function SettingsPage() {
         </div>
 
         <div className="rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">
-          <div className="mb-1 font-semibold">Meta webhook setup (developers.facebook.com e boshabi):</div>
+          <div className="mb-1 font-semibold">Meta webhook setup (configure this on developers.facebook.com):</div>
           <div>Callback URL: <code className="select-all break-all font-mono text-brand">{data.callback_url}</code></div>
-          <div className="mt-1">Verify token: <code className="select-all font-mono text-brand">{data.secrets.webhook_verify_token || "— save korle generate hobe —"}</code></div>
+          <div className="mt-1">Verify token: <code className="select-all font-mono text-brand">{data.secrets.webhook_verify_token || "-- will be generated after saving --"}</code></div>
           <button className="btn-ghost mt-2 !px-2.5 !py-1 text-xs" onClick={() => save({ regenerate_verify_token: true })}>Regenerate verify token</button>
         </div>
       </section>
@@ -212,22 +212,22 @@ export default function SettingsPage() {
         <h2 className="text-sm font-bold">Auto messages</h2>
         <label className="flex items-center gap-2 text-[13px]">
           <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => set("auto_reply_enabled", e.target.checked)} />
-          Keyword auto-reply rules on (rules Automation page e)
+          Keyword auto-reply rules enabled (manage rules on the Automation page)
         </label>
         <div>
-          <label className="label">Greeting message (notun customer prothom message dile)</label>
-          <textarea className="input min-h-[60px]" value={form.greeting_message} onChange={(e) => set("greeting_message", e.target.value)} placeholder="Assalamu alaikum! Kivabe help korte pari?" />
+          <label className="label">Greeting message (sent when a new customer sends their first message)</label>
+          <textarea className="input min-h-[60px]" value={form.greeting_message} onChange={(e) => set("greeting_message", e.target.value)} placeholder="Hi! How can I help you today?" />
         </div>
         <div>
-          <label className="label">Away message (business hours er baire)</label>
-          <textarea className="input min-h-[60px]" value={form.away_message} onChange={(e) => set("away_message", e.target.value)} placeholder="Amra ekhon offline. Sokal 10ta theke reply pabe insha'Allah." />
+          <label className="label">Away message (sent outside business hours)</label>
+          <textarea className="input min-h-[60px]" value={form.away_message} onChange={(e) => set("away_message", e.target.value)} placeholder="We're currently offline. We'll reply starting at 10 AM." />
         </div>
         <div>
-          <label className="label">Closing message (conversation close korle)</label>
-          <textarea className="input min-h-[60px]" value={form.closing_message} onChange={(e) => set("closing_message", e.target.value)} placeholder="Dhonnobad! Ar kichhu lagle janaben." />
+          <label className="label">Closing message (sent when a conversation is closed)</label>
+          <textarea className="input min-h-[60px]" value={form.closing_message} onChange={(e) => set("closing_message", e.target.value)} placeholder="Thank you! Let us know if you need anything else." />
         </div>
         <div>
-          <label className="label">Spam keywords (comma diye — match hole conversation spam flag hobe)</label>
+          <label className="label">Spam keywords (comma-separated -- matching keywords will flag the conversation as spam)</label>
           <input className="input" value={form.spam_keywords} onChange={(e) => set("spam_keywords", e.target.value)} placeholder="lottery, free bitcoin, click this link" />
         </div>
       </section>
@@ -273,18 +273,18 @@ export default function SettingsPage() {
       <section className="card space-y-3">
         <h2 className="text-sm font-bold">n8n automation</h2>
         <div>
-          <label className="label">n8n webhook URL (inbound forward hobe ekhane)</label>
+          <label className="label">n8n webhook URL (inbound messages will be forwarded here)</label>
           <input className="input font-mono" value={form.n8n_webhook_url} onChange={(e) => set("n8n_webhook_url", e.target.value)} placeholder="https://your-n8n.onrender.com/webhook/leadflow" />
         </div>
         <div className="text-xs text-muted">
           n8n shared secret: <code className="font-mono">{data.secrets.n8n_shared_secret || "not set"}</code>
           <button className="btn-ghost ml-2 !px-2 !py-0.5 text-xs" onClick={() => save({ regenerate_n8n_secret: true })}>Regenerate</button>
-          <span className="ml-1">(regenerate korle n8n workflow er header eo update korte hobe)</span>
+          <span className="ml-1">(after regenerating, update this in your n8n workflow's header too)</span>
         </div>
       </section>
 
       <div className="sticky bottom-3 flex justify-end">
-        <button className="btn shadow-lg" disabled={busy} onClick={() => save()}>{busy ? "Saving…" : "Save all settings"}</button>
+        <button className="btn shadow-lg" disabled={busy} onClick={() => save()}>{busy ? "Saving..." : "Save all settings"}</button>
       </div>
     </div>
   );
