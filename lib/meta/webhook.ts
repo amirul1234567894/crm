@@ -60,9 +60,18 @@ export async function processMetaWebhook(creds: OrgCredentials, body: any) {
 async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
   // Delivery / read receipts
   for (const st of value.statuses ?? []) {
+    // Phase 3, Section 8: record WHEN each status transition happened, not
+    // just the current status -- needed for delivery/read-time analytics
+    // and so a later status update can never accidentally look like it
+    // happened before an earlier one.
+    const messagesPatch: Record<string, unknown> = {
+      status: st.status, error_text: st.errors?.[0]?.title ?? null,
+    };
+    if (st.status === "delivered") messagesPatch.delivered_at = new Date().toISOString();
+    if (st.status === "read") messagesPatch.read_at = new Date().toISOString();
     await db
       .from("messages")
-      .update({ status: st.status, error_text: st.errors?.[0]?.title ?? null })
+      .update(messagesPatch)
       .eq("org_id", creds.orgId)
       .eq("provider_msg_id", st.id);
 
@@ -540,6 +549,9 @@ async function insertInbound(
     provider_msg_id: m.provider_msg_id,
     media_url: m.media_id,
     status: "delivered",
+    // Phase 3, Section 10: every message must identify its origin --
+    // this was the one path that never set a source at all.
+    source: "inbound_customer",
   }).select("id").single();
 
   // 23505 = unique violation = age-i eshechilo
