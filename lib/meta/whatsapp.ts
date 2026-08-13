@@ -76,6 +76,33 @@ export async function markRead(creds: WaCreds, providerMsgId: string): Promise<v
  * Phone normalise. BD: 01XXXXXXXXX → 8801XXXXXXXXX.
  * Onno country: + / 00 soriye digits rakhe (E.164 already dile untouched).
  */
+/**
+ * Phase 3, Section 5: read-only credential/asset check -- fetches the
+ * phone number's own metadata (never sends a message) so "Test Connection"
+ * can verify the access token + phone_number_id are actually valid and
+ * belong to this WhatsApp Business Account, without any side effects.
+ */
+export async function testWhatsAppConnection(creds: WaCreds): Promise<{
+  ok: boolean; displayNumber?: string; qualityRating?: string; error?: string; errorCode?: number;
+}> {
+  if (!creds.phoneNumberId || !creds.accessToken) {
+    return { ok: false, error: "WhatsApp phone number ID or access token is not set." };
+  }
+  try {
+    const res = await fetch(
+      `${GRAPH}/${creds.phoneNumberId}?fields=display_phone_number,quality_rating`,
+      { headers: { Authorization: `Bearer ${creds.accessToken}` }, signal: AbortSignal.timeout(15000) }
+    );
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { ok: false, error: data?.error?.message || `Meta API error ${res.status}`, errorCode: data?.error?.code };
+    }
+    return { ok: true, displayNumber: data?.display_phone_number, qualityRating: data?.quality_rating };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Network error contacting Meta." };
+  }
+}
+
 export function normalisePhone(input: string): string {
   let d = String(input || "").replace(/[^\d+]/g, "");
   if (d.startsWith("+")) d = d.slice(1);
