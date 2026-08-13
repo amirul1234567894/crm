@@ -1,4 +1,4 @@
-﻿import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getOrgCredentials } from "@/lib/tenant";
 import { randomUUID } from "crypto";
 
@@ -14,7 +14,10 @@ export type EventType =
   | "message.sent"
   | "message.delivered"
   | "message.read"
-  | "message.failed";
+  | "message.failed"
+  | "broadcast.created"
+  | "broadcast.started"
+  | "broadcast.completed";
 
 export interface EmitEventInput {
   orgId: string;

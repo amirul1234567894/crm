@@ -5,14 +5,16 @@ import { sendTemplate, sendText } from "@/lib/meta/whatsapp";
 import { parseBody, campaignSend } from "@/lib/schemas";
 import { sanitizeProviderError, jsonError } from "@/lib/errors";
 import { fillVariables } from "@/lib/personalise";
-import { resolveTemplateParams, type VariableMapping } from "@/lib/templateVariables";
+import { resolveTemplateParams, hasMissingVariables, type VariableMapping } from "@/lib/templateVariables";
+import { limits } from "@/lib/ratelimit";
+import { emitEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
  * Campaign chunk processor. Frontend/cron bar bar call kore jotokkhon done na hoy.
- * H-9 fix: claim_campaign_chunk() FOR UPDATE SKIP LOCKED — duita worker
+ * H-9 fix: claim_campaign_chunk() FOR UPDATE SKIP LOCKED -- duita worker
  * ek shathe cholleo same recipient ke duibar message jabe na.
  */
 export async function POST(req: NextRequest) {
@@ -38,6 +40,12 @@ export async function POST(req: NextRequest) {
   }
   const ctx = { orgId, userId: userIdForLog, name: "" } as any;
 
+  // Fix 2 (rate limiting): both the browser send-loop and the cron pusher
+  // land here -- cap either path at a generous per-org rate so a stuck
+  // client tab (or a compromised session) cannot hammer the Meta API.
+  const rl = await limits.campaignSend(ctx.orgId);
+  if (!rl.success) return jsonError("Too many send requests. Wait a minute and try again.", 429);
+
   const parsed = parseBody(campaignSend, await req.json().catch(() => null));
   if (!parsed.ok) return jsonError(parsed.error);
   const { campaignId } = parsed.data;
@@ -57,6 +65,16 @@ export async function POST(req: NextRequest) {
 
   if (campaign.status !== "running") {
     await db.from("campaigns").update({ status: "running" }).eq("id", campaignId);
+    // Phase 1, Section 33: fires exactly once, at the transition into
+    // "running" -- guarded by the same status check as the update above,
+    // and eventId is keyed on campaignId so a retry/concurrent call of
+    // this same chunk endpoint can never double-emit.
+    await emitEvent({
+      orgId: ctx.orgId, eventType: "broadcast.started",
+      eventId: `broadcast-started:${campaignId}`,
+      channel: campaign.channel, source: "manual_agent",
+      data: { campaign_id: campaignId, name: campaign.name },
+    });
   }
 
   // Atomic chunk claim
@@ -82,17 +100,32 @@ export async function POST(req: NextRequest) {
       failed++;
       continue;
     }
+
+    // Compute the variable mapping once -- used for both the guard below
+    // and the actual send.
+    const mapping: VariableMapping[] | null = tpl
+      ? (Array.isArray(campaign.variable_mapping) && campaign.variable_mapping.length
+          ? campaign.variable_mapping
+          : Array(tpl.variables ?? 0).fill({ source: "name" } as VariableMapping))
+      : null;
+
+    // Fix 4 (Phase 1, Section 19): never send a broadcast with a visible
+    // blank in it. audience.ts already excludes these at creation time;
+    // this is defense-in-depth for campaigns created before this feature
+    // existed, or where the lead's data changed after the campaign was
+    // created.
+    if (tpl && mapping && hasMissingVariables(mapping, lead)) {
+      await db.from("campaign_recipients").update({
+        status: "failed", error_text: "Skipped (template variable missing for this contact)",
+      }).eq("id", r.id);
+      failed++;
+      continue;
+    }
+
     let providerId = "";
     try {
       const to = lead.channel_uid || lead.phone || "";
-      if (tpl) {
-        // Phase 1, Section 19: real per-template variable-to-field mapping.
-        // Falls back to the old "fill with lead name" behaviour for any
-        // campaign created before this feature existed (empty/missing mapping).
-        const mapping: VariableMapping[] =
-          Array.isArray(campaign.variable_mapping) && campaign.variable_mapping.length
-            ? campaign.variable_mapping
-            : Array(tpl.variables ?? 0).fill({ source: "name" } as VariableMapping);
+      if (tpl && mapping) {
         const bodyParams = resolveTemplateParams(mapping, lead);
         providerId = await sendTemplate(
           { phoneNumberId: creds.waPhoneNumberId, accessToken: creds.accessToken },
@@ -159,7 +192,17 @@ export async function POST(req: NextRequest) {
     .select("id", { count: "exact", head: true })
     .eq("campaign_id", campaignId).eq("status", "pending");
 
-  if (!pending) await db.from("campaigns").update({ status: "done" }).eq("id", campaignId);
+  if (!pending) {
+    await db.from("campaigns").update({ status: "done" }).eq("id", campaignId);
+    // eventId keyed on campaignId -- idempotent even if two chunk calls
+    // both observe pending=0 at the same time (race on the final chunk).
+    await emitEvent({
+      orgId: ctx.orgId, eventType: "broadcast.completed",
+      eventId: `broadcast-completed:${campaignId}`,
+      channel: campaign.channel, source: "manual_agent",
+      data: { campaign_id: campaignId, name: campaign.name, sent, failed },
+    });
+  }
 
   return NextResponse.json({ ok: true, sent, failed, remaining: pending ?? 0, done: !pending });
 }
