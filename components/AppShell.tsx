@@ -32,6 +32,7 @@ const NAV = [
   { href: "/automation", label: "Automation", Icon: IconAutomation },
   { href: "/analytics", label: "Analytics", Icon: IconChart },
   { href: "/usage", label: "Usage", Icon: IconChart, managerOnly: true },
+  { href: "/errors", label: "Errors", Icon: IconChart, managerOnly: true },
   { href: "/settings/team", label: "Team", Icon: IconTeam, managerOnly: true },
   { href: "/billing", label: "Billing", Icon: IconBilling },
   { href: "/settings", label: "Settings", Icon: IconSettings, ownerOnly: true },
