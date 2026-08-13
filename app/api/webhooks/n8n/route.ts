@@ -77,9 +77,10 @@ async function storeIdempotentResult(
 
 /**
  * n8n -> CRM.
- * H-4 fix: org-scoped action e PER-ORG secret o cholbe (org_secrets.n8n_shared_secret);
- * global N8N_SHARED_SECRET fallback hishebe thake.
- * list_orgs (sob client er list) SUDHU global secret e -- na oita kono org secret e na.
+ * Org-scoped actions accept a PER-ORG secret (org_secrets.n8n_shared_secret),
+ * with a global N8N_SHARED_SECRET as a fallback.
+ * list_orgs (the full client list) accepts ONLY the global secret -- never
+ * a per-org secret.
  */
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-crm-secret") ?? "";
@@ -187,7 +188,7 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        // Thread e log (conversation khuje)
+        // Log this to the thread too, if we can resolve the conversation.
         const convId = payload.conversation_id as string | undefined;
         if (convId) {
           await db.from("messages").insert({
@@ -318,7 +319,7 @@ export async function POST(req: NextRequest) {
 
       case "sla_breaches": {
         const { data } = await db.rpc("detect_sla_breaches", { p_org: creds.orgId });
-        // Manager der notification
+        // Notify managers of each breach.
         for (const b of data ?? []) {
           const { data: managers } = await db.from("profiles").select("id")
             .eq("org_id", creds.orgId).in("role", ["owner", "manager"]).eq("is_active", true);
