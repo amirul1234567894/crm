@@ -73,13 +73,13 @@ export default function TasksPage() {
                       {t.leads.name || t.leads.phone}
                     </Link>
                   )}
-                  {t.assigned_to && <> · {members.find((m) => m.id === t.assigned_to)?.full_name?.split(" ")[0] ?? ""}</>}
-                  <span className="ml-1 capitalize">· {t.priority}</span>
+                  {t.assigned_to && <> {"\u00b7"} {members.find((m) => m.id === t.assigned_to)?.full_name?.split(" ")[0] ?? ""}</>}
+                  <span className="ml-1 capitalize">{"\u00b7"} {t.priority}</span>
                 </div>
               </div>
               {t.due_at && (
                 <span className={`text-2xs ${overdue ? "font-bold text-rose-600" : "text-muted"}`}>
-                  {overdue && "OVERDUE · "}{new Date(t.due_at).toLocaleString()}
+                  {overdue && `OVERDUE ${"\u00b7"} `}{new Date(t.due_at).toLocaleString()}
                 </span>
               )}
             </div>
