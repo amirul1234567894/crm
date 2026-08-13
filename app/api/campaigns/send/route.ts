@@ -96,8 +96,25 @@ export async function POST(req: NextRequest) {
   });
 
   if (!chunk || chunk.length === 0) {
-    await db.from("campaigns").update({ status: "done" }).eq("id", campaignId);
-    return NextResponse.json({ ok: true, done: true, sent: 0 });
+    // Phase 3, Section 45: don't mark the campaign done just because
+    // there's nothing left to CLAIM -- if other recipients are still
+    // stuck in "sending" (a previous worker crashed mid-chunk), the
+    // campaign must stay "running" so a later chunk call, after the
+    // cron's stale-recovery resets them back to "pending", can actually
+    // finish them instead of silently losing them.
+    const { count: stillSending } = await db.from("campaign_recipients")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId).eq("status", "sending");
+    if (!stillSending) {
+      await db.from("campaigns").update({ status: "done" }).eq("id", campaignId);
+      await emitEvent({
+        orgId: ctx.orgId, eventType: "broadcast.completed",
+        eventId: `broadcast-completed:${campaignId}`,
+        channel: campaign.channel, source: "manual_agent",
+        data: { campaign_id: campaignId, name: campaign.name, sent: 0, failed: 0 },
+      });
+    }
+    return NextResponse.json({ ok: true, done: !stillSending, sent: 0, stuck_sending: stillSending ?? 0 });
   }
 
   const tpl = campaign.templates as any;
@@ -204,8 +221,16 @@ export async function POST(req: NextRequest) {
   const { count: pending } = await db.from("campaign_recipients")
     .select("id", { count: "exact", head: true })
     .eq("campaign_id", campaignId).eq("status", "pending");
+  // Phase 3, Section 45: also require zero stragglers left in "sending"
+  // before declaring the campaign done -- pending=0 alone just means
+  // nothing is left to CLAIM, not that everything already claimed by a
+  // (possibly crashed) previous chunk actually finished.
+  const { count: stillSendingAfter } = await db.from("campaign_recipients")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId).eq("status", "sending");
 
-  if (!pending) {
+  const isDone = !pending && !stillSendingAfter;
+  if (isDone) {
     await db.from("campaigns").update({ status: "done" }).eq("id", campaignId);
     // eventId keyed on campaignId -- idempotent even if two chunk calls
     // both observe pending=0 at the same time (race on the final chunk).
@@ -217,5 +242,5 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ ok: true, sent, failed, remaining: pending ?? 0, done: !pending });
+  return NextResponse.json({ ok: true, sent, failed, remaining: pending ?? 0, done: isDone });
 }

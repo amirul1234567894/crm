@@ -30,7 +30,19 @@ export async function GET(req: NextRequest) {
   }
 
   const db = createAdminClient();
-  const report = { scheduled_sent: 0, scheduled_failed: 0, sla_breaches: 0, campaigns_activated: 0 };
+  const report = {
+    scheduled_sent: 0, scheduled_failed: 0, sla_breaches: 0, campaigns_activated: 0,
+    stale_sending_recovered: 0,
+  };
+
+  // ---- -1. Stale broadcast recipients (Phase 3, Section 45) ----
+  // If a worker crashed or the function was killed mid-chunk, some
+  // campaign_recipients can be stuck in "sending" forever. This resets
+  // them back to "pending" (or "failed" once retries are exhausted) so
+  // the next campaigns/send chunk call can actually finish them, instead
+  // of the campaign silently going "done" with unsent messages inside it.
+  const { data: staleCount } = await db.rpc("recover_stale_sending_recipients");
+  report.stale_sending_recovered = staleCount ?? 0;
 
   // ---- 0. Scheduled campaigns (Phase 1, Section 15/29) ----
   const { data: dueCampaigns } = await db
