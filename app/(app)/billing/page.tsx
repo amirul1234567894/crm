@@ -34,16 +34,16 @@ export default function BillingPage() {
   async function submitPayment() {
     if (!paying) return;
     setErr("");
-    if (!method) return setErr("Payment method select kor.");
-    if (txn.trim().length < 4) return setErr("TrxID/reference thik moto de.");
+    if (!method) return setErr("Please select a payment method.");
+    if (txn.trim().length < 4) return setErr("Please enter a valid transaction ID / reference.");
     setBusy(true);
-    // 002 guard: client sudhu unpaid → submitted korte pare, ei field gulo-i
+    // A client can only move an invoice from unpaid -> submitted; these are the only fields it may set.
     const { error } = await createClient().from("invoices").update({
       status: "submitted", payment_method: method, txn_ref: txn.trim(),
       payer_note: note.trim() || null, submitted_at: new Date().toISOString(),
     }).eq("id", paying.id);
     setBusy(false);
-    if (error) return setErr("Submit hoy ni — abar try kor.");
+    if (error) return setErr("Could not submit -- please try again.");
     setPaying(null); setTxn(""); setNote(""); setMethod("");
     load();
   }
@@ -59,12 +59,12 @@ export default function BillingPage() {
     <div className="p-4 md:p-6 space-y-4 max-w-4xl">
       <div>
         <h1 className="text-lg font-bold">Billing</h1>
-        <p className="text-xs text-muted">Monthly invoice — pay kore TrxID submit kor, admin verify korle paid hobe.</p>
+        <p className="text-xs text-muted">Monthly invoices -- pay and submit your transaction ID, and it will be marked paid once an admin verifies it.</p>
       </div>
 
       {unpaid.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-          {unpaid.length} ta invoice unpaid ache. Due date miss korle workspace suspend hote pare.
+          You have {unpaid.length} unpaid invoice(s). Missing the due date may result in workspace suspension.
         </div>
       )}
       {err && <div className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:bg-rose-950">{err}</div>}
@@ -81,11 +81,11 @@ export default function BillingPage() {
                   <div className="font-medium">{i.invoice_no}</div>
                   {i.due_date && <div className="text-2xs text-muted">due {i.due_date}</div>}
                 </td>
-                <td className="td text-xs">{i.period_start ?? "—"} → {i.period_end ?? "—"}</td>
+                <td className="td text-xs">{i.period_start ?? "--"} to {i.period_end ?? "--"}</td>
                 <td className="td font-semibold">{i.currency} {Number(i.amount).toLocaleString()}</td>
                 <td className="td">
                   <span className={`badge ${badge(i.status)}`}>{i.status}</span>
-                  {i.status === "submitted" && i.txn_ref && <div className="mt-0.5 text-2xs text-muted">Trx: {i.txn_ref}</div>}
+                  {i.status === "submitted" && i.txn_ref && <div className="mt-0.5 text-2xs text-muted">Txn: {i.txn_ref}</div>}
                   {i.admin_note && <div className="mt-0.5 text-2xs text-rose-600">{i.admin_note}</div>}
                 </td>
                 <td className="td text-right">
@@ -102,7 +102,7 @@ export default function BillingPage() {
 
       {paying && (
         <div className="card space-y-3">
-          <h2 className="text-sm font-bold">Pay {paying.invoice_no} — {paying.currency} {Number(paying.amount).toLocaleString()}</h2>
+          <h2 className="text-sm font-bold">Pay {paying.invoice_no} -- {paying.currency} {Number(paying.amount).toLocaleString()}</h2>
           <div className="grid gap-2 md:grid-cols-2">
             {methods.map((m) => (
               <button
@@ -118,21 +118,21 @@ export default function BillingPage() {
                 {m.instructions && <div className="mt-1 text-2xs text-muted">{m.instructions}</div>}
               </button>
             ))}
-            {!methods.length && <p className="text-xs text-muted">Admin ekhono payment method add kore ni — contact kor.</p>}
+            {!methods.length && <p className="text-xs text-muted">No payment methods have been set up yet -- please contact your admin.</p>}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <div>
-              <label className="label">TrxID / reference</label>
+              <label className="label">Transaction ID / reference</label>
               <input className="input" value={txn} onChange={(e) => setTxn(e.target.value)} placeholder="9AB7XXXX" />
             </div>
             <div>
               <label className="label">Note (optional)</label>
-              <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="bKash personal theke pathailam" />
+              <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Sent from my personal account" />
             </div>
           </div>
           <div className="flex justify-end gap-2">
             <button className="btn-ghost" onClick={() => setPaying(null)}>Cancel</button>
-            <button className="btn" disabled={busy} onClick={submitPayment}>{busy ? "Submitting…" : "Submit for verification"}</button>
+            <button className="btn" disabled={busy} onClick={submitPayment}>{busy ? "Submitting..." : "Submit for verification"}</button>
           </div>
         </div>
       )}
