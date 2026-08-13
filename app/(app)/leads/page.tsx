@@ -96,8 +96,9 @@ function LeadsInner() {
   }
 
   function exportCsv() {
-    // Client-side export of the filtered set — server already escapes on import;
-    // ekhane o formula-escape kori
+    // Client-side export of the filtered set -- the server already
+    // escapes on import, and the same formula-injection escaping is
+    // applied here too for consistency.
     const esc = (v: unknown) => {
       const s = String(v ?? "");
       const e = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
@@ -113,11 +114,11 @@ function LeadsInner() {
   }
 
   async function importCsv(file: File) {
-    setImportReport("Importing…");
+    setImportReport("Importing...");
     const res = await fetch("/api/leads/import", { method: "POST", body: await file.text() });
     const data = await res.json().catch(() => ({}));
     setImportReport(res.ok
-      ? `Imported ${data.inserted} · skipped ${data.skipped_duplicates} duplicates · ${data.invalid} invalid`
+      ? `Imported ${data.inserted} \u00b7 skipped ${data.skipped_duplicates} duplicates \u00b7 ${data.invalid} invalid`
       : data.error ?? "Import failed");
     load();
   }
@@ -138,7 +139,7 @@ function LeadsInner() {
 
   async function createLead() {
     if (!newLead.name && !newLead.phone) return;
-    // Phase 2: goes through /api/leads (not a direct browser insert) so the
+    // Goes through /api/leads (not a direct browser insert) so the
     // lead.created event can be emitted server-side and pushed to n8n --
     // the same event a webhook-created lead gets.
     const res = await fetch("/api/leads", {
@@ -229,17 +230,17 @@ function LeadsInner() {
           <span className="text-xs font-bold">{sel.size} selected</span>
           <select className="input h-8 w-auto text-xs" defaultValue=""
             onChange={(e) => e.target.value && bulk({ status: e.target.value })}>
-            <option value="" disabled>Set status…</option>
+            <option value="" disabled>Set status...</option>
             {["new","contacted","qualified","won","lost"].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <select className="input h-8 w-auto text-xs" defaultValue=""
             onChange={(e) => e.target.value && bulk({ priority: e.target.value })}>
-            <option value="" disabled>Set priority…</option>
+            <option value="" disabled>Set priority...</option>
             {["low","medium","high","urgent"].map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <select className="input h-8 w-auto text-xs" defaultValue=""
             onChange={(e) => e.target.value && bulk({ assigned_to: e.target.value === "none" ? null : e.target.value })}>
-            <option value="" disabled>Assign to…</option>
+            <option value="" disabled>Assign to...</option>
             <option value="none">Unassign</option>
             {members.map((m) => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
           </select>
@@ -293,7 +294,7 @@ function LeadsInner() {
                       </button>
                     )}
                   </div>
-                  <div className="text-2xs text-muted">{l.phone} {l.company ? `· ${l.company}` : ""}</div>
+                  <div className="text-2xs text-muted">{l.phone} {l.company ? `\u00b7 ${l.company}` : ""}</div>
                 </td>
                 <td className="td"><span className={`badge ${STATUS_BADGE[l.status] ?? ""}`}>{l.status}</span></td>
                 <td className="td capitalize">{l.priority}</td>
@@ -317,12 +318,12 @@ function LeadsInner() {
                 </td>
                 <td className="td capitalize">{l.source}</td>
                 <td className="td text-xs">
-                  {members.find((m) => m.id === l.assigned_to)?.full_name?.split(" ")[0] ?? <span className="text-muted">—</span>}
+                  {members.find((m) => m.id === l.assigned_to)?.full_name?.split(" ")[0] ?? <span className="text-muted">--</span>}
                 </td>
                 <td className="td text-xs tabular-nums" title="Days since last activity">
                   {ageDays(l.last_activity_at)}d
                   {ageDays(l.last_activity_at) >= 3 && !["won","lost"].includes(l.status) && (
-                    <span className="ml-1 text-amber-600" title="Aging — no activity for 3+ days">●</span>
+                    <span className="ml-1 text-amber-600" title="Aging -- no activity for 3+ days">&#9679;</span>
                   )}
                 </td>
                 <td className="td">
@@ -354,11 +355,11 @@ function LeadsInner() {
             <h2 className="text-[13px] font-bold">Duplicate leads ({dupes.length} groups)</h2>
             <button className="text-xs text-muted hover:underline" onClick={() => setDupes(null)}>Close</button>
           </div>
-          {dupes.length === 0 && <p className="text-xs text-muted">No duplicates found 🎉</p>}
+          {dupes.length === 0 && <p className="text-xs text-muted">No duplicates found.</p>}
           {dupes.map((g: any) => (
             <div key={g.match_key + g.match_type} className="mb-2 rounded-lg border border-line p-3 dark:border-slate-700">
               <div className="text-xs font-semibold">
-                Same {g.match_type}: <span className="text-brand">{g.match_key}</span> — {g.cnt} leads
+                Same {g.match_type}: <span className="text-brand">{g.match_key}</span> -- {g.cnt} leads
               </div>
               <div className="mt-1 flex flex-wrap gap-2">
                 {g.lead_ids.map((id: string, i: number) => (
@@ -369,7 +370,7 @@ function LeadsInner() {
                 {org.role !== "agent" && g.lead_ids.length > 1 && (
                   <button className="btn h-6 px-2 text-2xs"
                     onClick={() => merge(g.lead_ids[0], g.lead_ids[1])}>
-                    Merge newest → oldest
+                    Merge newest into oldest
                   </button>
                 )}
               </div>
