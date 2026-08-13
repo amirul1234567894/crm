@@ -42,7 +42,7 @@ export default function DashboardPage() {
         { label: "Tasks due", value: tasksDue, href: "/tasks" },
         {
           label: "Avg first response",
-          value: rt?.avg_first_response_min != null ? `${rt.avg_first_response_min}m` : "—",
+          value: rt?.avg_first_response_min != null ? `${rt.avg_first_response_min}m` : "--",
           href: "/analytics",
         },
       ]
@@ -74,7 +74,7 @@ export default function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card">
-          <h2 className="mb-3 text-[13px] font-bold">New leads — last 7 days</h2>
+          <h2 className="mb-3 text-[13px] font-bold">New leads -- last 7 days</h2>
           <div className="flex h-32 items-end gap-2">
             {(stats?.last_7_days ?? []).map((d) => (
               <div key={d.day} className="flex flex-1 flex-col items-center gap-1">
@@ -108,7 +108,7 @@ export default function DashboardPage() {
               );
             })}
             {stats && Object.keys(stats.by_source).length === 0 && (
-              <p className="text-xs text-muted">No leads yet — they will appear when messages come in.</p>
+              <p className="text-xs text-muted">No leads yet -- they will appear when messages come in.</p>
             )}
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function DashboardPage() {
               {rt.sla_first_breaches} first-response and {rt.sla_resolve_breaches} resolution breaches this week
             </div>
           </div>
-          <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">View →</span>
+          <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">View &rarr;</span>
         </Link>
       )}
     </div>
