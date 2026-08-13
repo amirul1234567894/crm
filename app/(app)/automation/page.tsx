@@ -40,9 +40,9 @@ export default function AutomationPage() {
 
   async function saveRule() {
     setErr("");
-    if (!form.name.trim()) return setErr("Rule name lagbe.");
+    if (!form.name.trim()) return setErr("A rule name is required.");
     const keywords = form.keywords.split(",").map((k) => k.trim().toLowerCase()).filter(Boolean);
-    if (form.match_type !== "any" && !keywords.length) return setErr("Kichhu keyword de (comma diye).");
+    if (form.match_type !== "any" && !keywords.length) return setErr("Please add at least one keyword (comma-separated).");
     const payload = {
       org_id: org.orgId, name: form.name.trim(), match_type: form.match_type, keywords,
       reply_text: form.reply_text.trim() || null,
@@ -55,7 +55,7 @@ export default function AutomationPage() {
     const { error } = form.id
       ? await db.from("auto_reply_rules").update(payload).eq("id", form.id)
       : await db.from("auto_reply_rules").insert(payload);
-    if (error) return setErr("Save hoy ni — permission check kor.");
+    if (error) return setErr("Could not save -- check your permissions.");
     setShowForm(false); setForm(emptyRule); load();
   }
 
@@ -64,7 +64,7 @@ export default function AutomationPage() {
     load();
   }
   async function deleteRule(id: string) {
-    if (!confirm("Rule delete korbi?")) return;
+    if (!confirm("Delete this rule?")) return;
     await createClient().from("auto_reply_rules").delete().eq("id", id);
     load();
   }
@@ -78,7 +78,7 @@ export default function AutomationPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold">Automation</h1>
-          <p className="text-xs text-muted">Keyword auto-reply, n8n forwarding, follow-up rules. Greeting/away message Settings e ache.</p>
+          <p className="text-xs text-muted">Keyword auto-reply, n8n forwarding, follow-up rules. Greeting/away messages are on the Settings page.</p>
         </div>
         {canEdit && (
           <button className="btn" onClick={() => { setForm(emptyRule); setShowForm(true); }}>+ New rule</button>
@@ -104,25 +104,25 @@ export default function AutomationPage() {
               </select>
             </div>
             <div>
-              <label className="label">Priority (kom = age cholbe)</label>
+              <label className="label">Priority (lower runs first)</label>
               <input type="number" className="input" value={form.priority} onChange={(e) => setForm({ ...form, priority: +e.target.value || 100 })} />
             </div>
           </div>
           {form.match_type !== "any" && (
             <div>
-              <label className="label">Keywords (comma diye)</label>
-              <input className="input" value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} placeholder="price, dam, koto, rate" />
+              <label className="label">Keywords (comma-separated)</label>
+              <input className="input" value={form.keywords} onChange={(e) => setForm({ ...form, keywords: e.target.value })} placeholder="price, cost, rate, how much" />
             </div>
           )}
           <div>
-            <label className="label">Auto reply text (khali rakhle reply jabe na, sudhu action cholbe)</label>
+            <label className="label">Auto reply text (leave blank to run the action only, without a reply)</label>
             <textarea className="input min-h-[70px]" value={form.reply_text} onChange={(e) => setForm({ ...form, reply_text: e.target.value })} />
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div>
               <label className="label">Set lead status</label>
               <select className="input" value={form.set_lead_status} onChange={(e) => setForm({ ...form, set_lead_status: e.target.value })}>
-                <option value="">— no change —</option>
+                <option value="">-- no change --</option>
                 {["new", "contacted", "qualified", "won", "lost"].map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
@@ -131,7 +131,7 @@ export default function AutomationPage() {
               <input className="input" value={form.add_tag} onChange={(e) => setForm({ ...form, add_tag: e.target.value })} placeholder="hot" />
             </div>
             <div>
-              <label className="label">n8n tag (forward hole)</label>
+              <label className="label">n8n tag (when forwarding)</label>
               <input className="input" value={form.n8n_tag} onChange={(e) => setForm({ ...form, n8n_tag: e.target.value })} placeholder="ai_reply" />
             </div>
           </div>
@@ -168,8 +168,8 @@ export default function AutomationPage() {
                 <td className="td text-xs">{r.match_type}{r.keywords.length ? `: ${r.keywords.join(", ")}` : ""}</td>
                 <td className="td text-xs">
                   {[r.reply_text && "reply", r.forward_to_n8n && `n8n${r.n8n_tag ? `(${r.n8n_tag})` : ""}`,
-                    r.set_lead_status && `status→${r.set_lead_status}`, r.add_tag && `tag+${r.add_tag}`]
-                    .filter(Boolean).join(" · ") || "—"}
+                    r.set_lead_status && `status->${r.set_lead_status}`, r.add_tag && `tag+${r.add_tag}`]
+                    .filter(Boolean).join(" \u00b7 ") || "--"}
                 </td>
                 <td className="td">
                   <button
@@ -213,7 +213,7 @@ export default function AutomationPage() {
               {followups.map((f) => (
                 <tr key={f.id}>
                   <td className="td font-medium">{f.name}</td>
-                  <td className="td text-xs">{f.delay_hours}h por{f.plain_message ? ` · "${f.plain_message.slice(0, 40)}"` : ""}</td>
+                  <td className="td text-xs">after {f.delay_hours}h{f.plain_message ? ` \u00b7 "${f.plain_message.slice(0, 40)}"` : ""}</td>
                   <td className="td">
                     <button
                       className={`badge cursor-pointer ${f.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
@@ -224,7 +224,7 @@ export default function AutomationPage() {
                   </td>
                 </tr>
               ))}
-              {!followups.length && <tr><td className="td py-8 text-center text-muted" colSpan={3}>No follow-up rules. (n8n cron ei table dhore due follow-up pathay.)</td></tr>}
+              {!followups.length && <tr><td className="td py-8 text-center text-muted" colSpan={3}>No follow-up rules yet. (n8n's cron reads this table to find due follow-ups.)</td></tr>}
             </tbody>
           </table>
         </div>
