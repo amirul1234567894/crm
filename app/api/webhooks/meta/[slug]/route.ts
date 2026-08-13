@@ -1,8 +1,9 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getOrgCredentialsBySlug } from "@/lib/tenant";
 import { verifyMetaSignature, safeEqual } from "@/lib/crypto";
 import { processMetaWebhook } from "@/lib/meta/webhook";
 import { limits } from "@/lib/ratelimit";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 25;
@@ -57,6 +58,15 @@ export async function POST(req: NextRequest, { params }: { params: { slug: strin
     console.error(`[${creds.slug}] webhook signature mismatch`);
     return NextResponse.json({ ok: true });
   }
+
+  // Phase 3, Section 41: stamp last_webhook_at BEFORE processing, not after
+  // -- if processMetaWebhook throws, connection health should still see
+  // "yes, Meta is reaching us" rather than the timestamp silently never
+  // updating because of an unrelated processing bug downstream.
+  createAdminClient().from("org_settings")
+    .update({ last_webhook_at: new Date().toISOString() })
+    .eq("org_id", creds.orgId)
+    .then(() => {}, () => {});
 
   try {
     await processMetaWebhook(creds, body);
