@@ -41,6 +41,10 @@ export default function SettingsPage() {
       closing_message: s.closing_message ?? "",
       spam_keywords: Array.isArray(s.spam_keywords) ? s.spam_keywords.join(", ") : "",
       business_hours: s.business_hours ?? null,
+      ai_enabled: !!s.ai_enabled,
+      ai_tone: s.ai_tone ?? "professional",
+      ai_business_context: s.ai_business_context ?? "",
+      ai_auto_reply_level: s.ai_auto_reply_level ?? 1,
     });
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -53,6 +57,7 @@ export default function SettingsPage() {
     payload.daily_send_cap = Number(form.daily_send_cap) || 250;
     payload.sla_first_response_min = Number(form.sla_first_response_min) || 15;
     payload.sla_resolution_min = Number(form.sla_resolution_min) || 1440;
+    payload.ai_auto_reply_level = Number(form.ai_auto_reply_level) || 1;
     if (secretsForm.meta_access_token.trim()) payload.meta_access_token = secretsForm.meta_access_token.trim();
     if (secretsForm.meta_app_secret.trim()) payload.meta_app_secret = secretsForm.meta_app_secret.trim();
 
@@ -224,6 +229,37 @@ export default function SettingsPage() {
         <div>
           <label className="label">Spam keywords (comma diye — match hole conversation spam flag hobe)</label>
           <input className="input" value={form.spam_keywords} onChange={(e) => set("spam_keywords", e.target.value)} placeholder="lottery, free bitcoin, click this link" />
+        </div>
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="text-sm font-bold">AI Assistant (Phase 4)</h2>
+        <label className="flex items-center gap-2 text-[13px]">
+          <input type="checkbox" checked={form.ai_enabled} onChange={(e) => set("ai_enabled", e.target.checked)} />
+          AI enabled for this workspace (lead scoring, intent detection, conversation summaries, reply suggestions)
+        </label>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="label">Tone</label>
+            <select className="input" value={form.ai_tone} onChange={(e) => set("ai_tone", e.target.value)}>
+              <option value="professional">Professional</option>
+              <option value="friendly">Friendly</option>
+              <option value="casual">Casual</option>
+              <option value="formal">Formal</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Auto-reply level</label>
+            <select className="input" value={form.ai_auto_reply_level} onChange={(e) => set("ai_auto_reply_level", +e.target.value)}>
+              <option value={1}>Level 1 -- Suggestions only (agent must send)</option>
+              <option value={2}>Level 2 -- Low-risk FAQ auto reply</option>
+              <option value={3}>Level 3 -- Advanced automation</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label className="label">Business context (products, pricing, policies -- AI will never invent facts beyond this)</label>
+          <textarea className="input min-h-[100px]" value={form.ai_business_context} onChange={(e) => set("ai_business_context", e.target.value)} placeholder="We sell... Prices start at... Delivery takes... Returns within..." />
         </div>
       </section>
 

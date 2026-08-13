@@ -14,6 +14,7 @@ const SETTINGS_KEYS = [
   "reply_only_first_msg","business_hours","sla_enabled","sla_first_response_min",
   "sla_resolution_min","spam_keywords","greeting_message","away_message",
   "closing_message","auto_assign_enabled","custom_field_defs",
+  "ai_enabled","ai_provider","ai_model","ai_tone","ai_language","ai_business_context","ai_auto_reply_level",
 ] as const;
 
 export async function GET() {

@@ -117,6 +117,15 @@ export const orgSettings = z
       .max(25)
       .optional(),
     // secrets — encrypted hoye jabe
+    // Phase 4: AI settings
+    ai_enabled: z.boolean().optional(),
+    ai_provider: z.enum(["groq"]).optional(),
+    ai_model: z.string().trim().max(80).optional(),
+    ai_tone: z.enum(["professional", "friendly", "casual", "formal"]).optional(),
+    ai_language: z.string().trim().max(40).optional().or(z.literal("")),
+    ai_business_context: z.string().trim().max(4000).optional().or(z.literal("")),
+    ai_auto_reply_level: z.number().int().min(1).max(3).optional(),
+
     meta_access_token: z.string().trim().min(20).max(600).optional(),
     meta_app_secret: z.string().trim().min(10).max(200).optional(),
     regenerate_verify_token: z.boolean().optional(),
