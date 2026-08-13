@@ -45,7 +45,7 @@ export default function TopBar({ userId }: { userId: string }) {
       .order("created_at", { ascending: false }).limit(1).maybeSingle()
       .then(({ data }) => setAnnouncement(data as any));
 
-    // Realtime: nijer notification
+    // Realtime: this user's own notifications
     const chan = supabase
       .channel("notif")
       .on(
@@ -55,7 +55,7 @@ export default function TopBar({ userId }: { userId: string }) {
       )
       .subscribe();
 
-    // Presence heartbeat — online/offline status
+    // Presence heartbeat -- online/offline status
     const beat = () => fetch("/api/auth/track", { method: "PATCH" }).catch(() => {});
     beat();
     const t = setInterval(beat, 60_000);
@@ -122,7 +122,7 @@ export default function TopBar({ userId }: { userId: string }) {
           </span>
           <input
             className="input h-8 pl-8 text-xs"
-            placeholder="Search leads, phone, email…  (global search)"
+            placeholder="Search leads, phone, email... (global search)"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
