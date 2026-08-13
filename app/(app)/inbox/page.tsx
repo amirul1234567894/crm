@@ -87,7 +87,8 @@ function InboxInner() {
   useEffect(() => { loadConvs(); }, [loadConvs]);
 
   useEffect(() => {
-    // H-3 fix: realtime subscription org_id filter diye — onno org er event ashbe na
+    // Realtime subscription is filtered by org_id -- events from other
+    // workspaces are never delivered to this client.
     const chan = supabase
       .channel("inbox")
       .on("postgres_changes",
@@ -300,7 +301,7 @@ function InboxInner() {
             <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted">
               <IconSearch className="h-4 w-4" />
             </span>
-            <input className="input h-9 pl-8" placeholder="Search conversations…"
+            <input className="input h-9 pl-8" placeholder="Search conversations..."
               value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           <div className="flex flex-wrap gap-1.5 text-2xs">
@@ -376,9 +377,9 @@ function InboxInner() {
                 {active.leads?.name || active.leads?.phone || "Unknown"}
               </div>
               <div className="text-2xs text-muted">
-                {active.leads?.phone} · {active.channel}
+                {active.leads?.phone} {"\u00b7"} {active.channel}
                 {active.assigned_to && (
-                  <> · assigned to {members.find((m) => m.id === active.assigned_to)?.full_name?.split(" ")[0] ?? "someone"}</>
+                  <> {"\u00b7"} assigned to {members.find((m) => m.id === active.assigned_to)?.full_name?.split(" ")[0] ?? "someone"}</>
                 )}
               </div>
             </div>
@@ -453,9 +454,9 @@ function InboxInner() {
                       {m.body}
                       <div className={`mt-1 flex items-center gap-1.5 text-[10px] ${m.direction === "out" ? "text-white/70" : "text-muted"}`}>
                         {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        {m.is_automated && <span>· bot</span>}
+                        {m.is_automated && <span>{"\u00b7"} bot</span>}
                         {m.direction === "out" && (
-                          <span>· {m.status === "read" ? "✓✓ read" : m.status === "delivered" ? "✓✓" : m.status === "failed" ? "failed" : "✓"}</span>
+                          <span>{"\u00b7"} {m.status === "read" ? "\u2713\u2713 read" : m.status === "delivered" ? "\u2713\u2713" : m.status === "failed" ? "failed" : "\u2713"}</span>
                         )}
                         <button
                           className={`opacity-0 transition group-hover:opacity-100 ${starred.has(m.id) ? "opacity-100 text-amber-400" : ""}`}
@@ -476,7 +477,7 @@ function InboxInner() {
               <div className="border-t border-line p-3 dark:border-slate-800">
                 {!windowOpen && active.channel === "whatsapp" && (
                   <p className="mb-2 rounded-lg bg-amber-50 px-3 py-1.5 text-2xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                    24-hour window closed — only approved templates can be sent (Templates page).
+                    24-hour window closed -- only approved templates can be sent (Templates page).
                   </p>
                 )}
                 {error && <p className="mb-2 text-xs text-rose-600">{error}</p>}
@@ -485,7 +486,7 @@ function InboxInner() {
                     {cannedMatch.slice(0, 5).map((c) => (
                       <button key={c.id} onClick={() => insertCanned(c)}
                         className="block w-full px-3 py-1.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <span className="font-semibold text-brand">{c.shortcut}</span> — {c.title}
+                        <span className="font-semibold text-brand">{c.shortcut}</span> -- {c.title}
                       </button>
                     ))}
                   </div>
@@ -495,7 +496,7 @@ function InboxInner() {
                     <textarea
                       className="input min-h-[40px] resize-none py-2 pr-16"
                       rows={1}
-                      placeholder='Type a message… ("/" for quick replies, {{name}} works)'
+                      placeholder='Type a message... ("/" for quick replies, {{name}} works)'
                       value={text}
                       disabled={!!lockedName || active.leads?.is_blocked}
                       onChange={(e) => setText(e.target.value)}
@@ -505,7 +506,7 @@ function InboxInner() {
                     />
                     <div className="absolute bottom-1.5 right-1.5 flex gap-1">
                       <button className="btn-ghost h-7 w-7 border-0 p-0" title="Quick replies"
-                        onClick={() => setShowCanned((s) => !s)}>⚡</button>
+                        onClick={() => setShowCanned((s) => !s)}>{"\u26a1"}</button>
                       <button className="btn-ghost h-7 w-7 border-0 p-0" title="Schedule message"
                         onClick={() => setShowSchedule((s) => !s)}>
                         <IconClock className="h-4 w-4" />
@@ -532,7 +533,7 @@ function InboxInner() {
                       </button>
                     ))}
                     {canned.length === 0 && (
-                      <p className="p-3 text-xs text-muted">No quick replies yet — add them on the Templates page.</p>
+                      <p className="p-3 text-xs text-muted">No quick replies yet -- add them on the Templates page.</p>
                     )}
                   </div>
                 )}
@@ -544,7 +545,7 @@ function InboxInner() {
                     <button className="btn h-9" onClick={schedule} disabled={busy || !text.trim() || !scheduleAt}>
                       Schedule
                     </button>
-                    <span className="text-2xs text-muted">Message box er text ta oi shomoy jabe</span>
+                    <span className="text-2xs text-muted">The message box text will be sent at that time</span>
                   </div>
                 )}
               </div>
@@ -570,7 +571,7 @@ function InboxInner() {
               </div>
               <div className="flex items-end gap-2 border-t border-line p-3 dark:border-slate-800">
                 <textarea className="input min-h-[40px] flex-1 resize-none py-2" rows={1}
-                  placeholder="Add an internal note… (@FirstName to notify)"
+                  placeholder="Add an internal note... (@FirstName to notify)"
                   value={noteText} onChange={(e) => setNoteText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addNote(); } }} />
                 <button className="btn h-10" onClick={addNote} disabled={!noteText.trim()}>Add</button>
