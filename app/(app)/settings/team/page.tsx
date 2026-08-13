@@ -40,10 +40,10 @@ export default function TeamPage() {
     try {
       const res = await fetch("/api/org/team");
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setLoadError(j.error ?? "Team load kora gelo na."); return; }
+      if (!res.ok) { setLoadError(j.error ?? "Could not load the team."); return; }
       setTeam(j.team ?? []); setMe(j.me ?? "");
     } catch {
-      setLoadError("Network error — connection check kor.");
+      setLoadError("Network error -- please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -52,8 +52,8 @@ export default function TeamPage() {
 
   async function addMember() {
     setMsg(null);
-    if (!form.full_name.trim() || !form.email.trim()) return setMsg({ ok: false, text: "Name ar email lagbe." });
-    if (form.password.length < 12) return setMsg({ ok: false, text: "Password minimum 12 character." });
+    if (!form.full_name.trim() || !form.email.trim()) return setMsg({ ok: false, text: "Name and email are required." });
+    if (form.password.length < 12) return setMsg({ ok: false, text: "Password must be at least 12 characters." });
     setBusy(true);
     const res = await fetch("/api/org/team", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -62,7 +62,7 @@ export default function TeamPage() {
     const j = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) return setMsg({ ok: false, text: j.error ?? "Create failed." });
-    setMsg({ ok: true, text: `Account ready. Login credentials member ke pathiye de: ${form.email} / ${form.password}` });
+    setMsg({ ok: true, text: `Account ready. Send these login credentials to the new member: ${form.email} / ${form.password}` });
     setShowNew(false);
     setForm({ full_name: "", email: "", role: "agent", password: genPassword() });
     load();
@@ -82,8 +82,8 @@ export default function TeamPage() {
 
   function resetPassword(m: Member) {
     const pw = genPassword();
-    if (!confirm(`${m.full_name ?? m.email} er password reset korbi?\n\nNotun password: ${pw}\n\n(Ei password member ke pathiye dis — ar dekhano hobe na.)`)) return;
-    patch(m.user_id, { reset_password: pw }, `Password reset done. Notun password: ${pw}`);
+    if (!confirm(`Reset the password for ${m.full_name ?? m.email}?\n\nNew password: ${pw}\n\n(Send this password to the member -- it will not be shown again.)`)) return;
+    patch(m.user_id, { reset_password: pw }, `Password reset. New password: ${pw}`);
   }
 
   const roleBadge = (r: string) =>
@@ -95,10 +95,10 @@ export default function TeamPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold">Team</h1>
-          <p className="text-xs text-muted">Live status, 7-day workload ar performance. Admin manager banate pare; manager sudhu staff.</p>
+          <p className="text-xs text-muted">Live status, 7-day workload and performance. Owners can create managers; managers can only create staff.</p>
         </div>
         <div className="flex gap-2">
-          {isOwner && <Link href="/settings" className="btn-ghost">← Settings</Link>}
+          {isOwner && <Link href="/settings" className="btn-ghost">&larr; Settings</Link>}
           {isManager && <button className="btn" onClick={() => { setShowNew((v) => !v); setForm((f) => ({ ...f, password: genPassword() })); }}>+ Add member</button>}
         </div>
       </div>
@@ -128,16 +128,16 @@ export default function TeamPage() {
               </select>
             </div>
             <div>
-              <label className="label">Temporary password (min 12 char)</label>
+              <label className="label">Temporary password (min 12 characters)</label>
               <div className="flex gap-2">
                 <input className="input font-mono" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-                <button className="btn-ghost shrink-0" onClick={() => setForm({ ...form, password: genPassword() })}>↻</button>
+                <button className="btn-ghost shrink-0" onClick={() => setForm({ ...form, password: genPassword() })}>&#8635;</button>
               </div>
             </div>
           </div>
           <div className="flex justify-end gap-2">
             <button className="btn-ghost" onClick={() => setShowNew(false)}>Cancel</button>
-            <button className="btn" disabled={busy} onClick={addMember}>{busy ? "Creating…" : "Create account"}</button>
+            <button className="btn" disabled={busy} onClick={addMember}>{busy ? "Creating..." : "Create account"}</button>
           </div>
         </div>
       )}
@@ -155,7 +155,7 @@ export default function TeamPage() {
             {team.map((m) => (
               <tr key={m.user_id} className={m.is_active ? "" : "opacity-50"}>
                 <td className="td">
-                  <div className="font-medium">{m.full_name ?? "—"} {m.user_id === me && <span className="text-2xs text-muted">(you)</span>}</div>
+                  <div className="font-medium">{m.full_name ?? "--"} {m.user_id === me && <span className="text-2xs text-muted">(you)</span>}</div>
                   <div className="text-2xs text-muted">{m.email}</div>
                 </td>
                 <td className="td"><span className={`badge ${roleBadge(m.role)}`}>{m.role === "agent" ? "staff" : m.role}</span></td>
@@ -168,14 +168,14 @@ export default function TeamPage() {
                 <td className="td">{m.open_conversations}</td>
                 <td className="td">{m.messages_sent}</td>
                 <td className="td">{m.leads_won}</td>
-                <td className="td">{m.avg_first_response_min != null ? `${m.avg_first_response_min}m` : "—"}</td>
+                <td className="td">{m.avg_first_response_min != null ? `${m.avg_first_response_min}m` : "--"}</td>
                 {isOwner && (
                   <td className="td text-right">
                     {m.role !== "owner" && m.user_id !== me && (
                       <div className="inline-flex gap-1.5">
                         <button className="btn-ghost !px-2 !py-1 text-xs"
                           onClick={() => patch(m.user_id, { role: m.role === "agent" ? "manager" : "agent" }, "Role updated.")}>
-                          {m.role === "agent" ? "→ Manager" : "→ Staff"}
+                          {m.role === "agent" ? "-> Manager" : "-> Staff"}
                         </button>
                         <button className="btn-ghost !px-2 !py-1 text-xs" onClick={() => resetPassword(m)}>Reset pw</button>
                         <button className={`btn-ghost !px-2 !py-1 text-xs ${m.is_active ? "text-rose-600" : "text-emerald-600"}`}
@@ -189,7 +189,7 @@ export default function TeamPage() {
               </tr>
             ))}
             {loading && (
-              <tr><td className="td py-10 text-center text-muted" colSpan={8}>Loading team…</td></tr>
+              <tr><td className="td py-10 text-center text-muted" colSpan={8}>Loading team...</td></tr>
             )}
             {!loading && loadError && (
               <tr><td className="td py-10 text-center text-rose-600" colSpan={8}>{loadError}</td></tr>
