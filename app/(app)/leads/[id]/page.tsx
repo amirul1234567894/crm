@@ -118,7 +118,7 @@ export default function LeadDetailPage() {
           <IconBack />
         </button>
         <h1 className="text-lg font-bold tracking-tight">{lead.name || lead.phone || "Lead"}</h1>
-        {saved && <span className="text-xs text-emerald-600">Saved ✓</span>}
+        {saved && <span className="text-xs text-emerald-600">Saved {"\u2713"}</span>}
         {lead.is_spam && <span className="badge bg-amber-100 text-amber-700">spam</span>}
         {lead.is_blocked && <span className="badge bg-slate-200 text-slate-600">blocked</span>}
         {!lead.opt_in && <span className="badge bg-rose-100 text-rose-700">opted out</span>}
@@ -150,7 +150,7 @@ export default function LeadDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="label">Score (0–100)</label>
+                <label className="label">Score (0-100)</label>
                 <input className="input" type="number" min={0} max={100} defaultValue={lead.score}
                   onBlur={(e) => save({ score: Math.max(0, Math.min(100, Number(e.target.value) || 0)) })} />
               </div>
@@ -177,7 +177,7 @@ export default function LeadDetailPage() {
                     {d.type === "select" ? (
                       <select className="input" defaultValue={lead.custom?.[d.key] ?? ""}
                         onChange={(e) => save({ custom: { ...(lead.custom ?? {}), [d.key]: e.target.value } })}>
-                        <option value="">—</option>
+                        <option value="">--</option>
                         {(d.options ?? []).map((o: string) => <option key={o}>{o}</option>)}
                       </select>
                     ) : (
@@ -214,7 +214,7 @@ export default function LeadDetailPage() {
             <div className="space-y-1.5">
               {history.map((h) => (
                 <div key={h.id} className="text-2xs text-muted">
-                  {new Date(h.created_at).toLocaleDateString()} — {memberName(h.from_user)} → <b>{memberName(h.to_user)}</b>
+                  {new Date(h.created_at).toLocaleDateString()} -- {memberName(h.from_user)} {"\u2192"} <b>{memberName(h.to_user)}</b>
                 </div>
               ))}
               {history.length === 0 && <p className="text-2xs text-muted">No transfers yet.</p>}
@@ -229,7 +229,7 @@ export default function LeadDetailPage() {
             {convs.map((c) => (
               <Link key={c.id} href={`/inbox?c=${c.id}`}
                 className="mb-1.5 flex items-center justify-between rounded-lg border border-line px-3 py-2 text-xs hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
-                <span className="capitalize">{c.channel} · {c.status}</span>
+                <span className="capitalize">{c.channel} {"\u00b7"} {c.status}</span>
                 <span className="truncate px-2 text-muted">{c.last_message_text}</span>
                 <span className="shrink-0 text-2xs text-muted">
                   {c.last_message_at ? new Date(c.last_message_at).toLocaleDateString() : ""}
@@ -247,7 +247,7 @@ export default function LeadDetailPage() {
           <div className="card">
             <h2 className="mb-2 text-[13px] font-bold">Tasks & follow-ups</h2>
             <div className="mb-3 flex gap-2">
-              <input className="input h-9 flex-1" placeholder="New task…" value={taskTitle}
+              <input className="input h-9 flex-1" placeholder="New task..." value={taskTitle}
                 onChange={(e) => setTaskTitle(e.target.value)} />
               <input className="input h-9 w-auto" type="datetime-local" value={taskDue}
                 onChange={(e) => setTaskDue(e.target.value)} />
@@ -277,7 +277,7 @@ export default function LeadDetailPage() {
           <div className="card">
             <h2 className="mb-2 text-[13px] font-bold">Internal notes</h2>
             <div className="mb-3 flex gap-2">
-              <input className="input h-9 flex-1" placeholder="Add a note… (@FirstName mentions)"
+              <input className="input h-9 flex-1" placeholder="Add a note... (@FirstName mentions)"
                 value={noteText} onChange={(e) => setNoteText(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addNote()} />
               <button className="btn h-9" onClick={addNote}>Add</button>
