@@ -279,7 +279,7 @@ export default function SettingsPage() {
         <div className="text-xs text-muted">
           n8n shared secret: <code className="font-mono">{data.secrets.n8n_shared_secret || "not set"}</code>
           <button className="btn-ghost ml-2 !px-2 !py-0.5 text-xs" onClick={() => save({ regenerate_n8n_secret: true })}>Regenerate</button>
-          <span className="ml-1">(after regenerating, update this in your n8n workflow's header too)</span>
+          <span className="ml-1">(after regenerating, update this in your n8n workflow&apos;s header too)</span>
         </div>
       </section>
 

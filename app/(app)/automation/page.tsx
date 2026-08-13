@@ -224,7 +224,7 @@ export default function AutomationPage() {
                   </td>
                 </tr>
               ))}
-              {!followups.length && <tr><td className="td py-8 text-center text-muted" colSpan={3}>No follow-up rules yet. (n8n's cron reads this table to find due follow-ups.)</td></tr>}
+              {!followups.length && <tr><td className="td py-8 text-center text-muted" colSpan={3}>No follow-up rules yet. (n8n&apos;s cron reads this table to find due follow-ups.)</td></tr>}
             </tbody>
           </table>
         </div>
