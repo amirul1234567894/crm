@@ -77,7 +77,18 @@ export async function POST(req: NextRequest) {
     return jsonError(`Daily send limit reached (${cap.cap}). Resume tomorrow.`, 429);
 
   if (campaign.status !== "running") {
-    await db.from("campaigns").update({ status: "running" }).eq("id", campaignId);
+    // Phase 3, Section 28: capture audience/eligible counts and the actual
+    // start time on the campaign row itself, at the moment sending
+    // actually begins -- not derived later from campaign_recipients,
+    // which can drift (leads deleted/merged after the send).
+    const { count: recipientTotal } = await db.from("campaign_recipients")
+      .select("id", { count: "exact", head: true }).eq("campaign_id", campaignId);
+    await db.from("campaigns").update({
+      status: "running",
+      started_at: new Date().toISOString(),
+      audience_count: recipientTotal ?? 0,
+      eligible_count: recipientTotal ?? 0,
+    }).eq("id", campaignId);
     // Phase 1, Section 33: fires exactly once, at the transition into
     // "running" -- guarded by the same status check as the update above,
     // and eventId is keyed on campaignId so a retry/concurrent call of
@@ -106,7 +117,7 @@ export async function POST(req: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("campaign_id", campaignId).eq("status", "sending");
     if (!stillSending) {
-      await db.from("campaigns").update({ status: "done" }).eq("id", campaignId);
+      await db.from("campaigns").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", campaignId);
       await emitEvent({
         orgId: ctx.orgId, eventType: "broadcast.completed",
         eventId: `broadcast-completed:${campaignId}`,
@@ -231,7 +242,7 @@ export async function POST(req: NextRequest) {
 
   const isDone = !pending && !stillSendingAfter;
   if (isDone) {
-    await db.from("campaigns").update({ status: "done" }).eq("id", campaignId);
+    await db.from("campaigns").update({ status: "done", completed_at: new Date().toISOString() }).eq("id", campaignId);
     // eventId keyed on campaignId -- idempotent even if two chunk calls
     // both observe pending=0 at the same time (race on the final chunk).
     await emitEvent({
