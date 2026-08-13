@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireOrg, getOrgCredentials, checkSendCap } from "@/lib/tenant";
+import { requireOrg, getOrgCredentials, checkSendCap, getConnectionBlockReason, markConnectionInvalidOnAuthError } from "@/lib/tenant";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendText, sendTemplate } from "@/lib/meta/whatsapp";
 import { sendDirectMessage } from "@/lib/meta/messenger";
@@ -60,6 +60,11 @@ export async function POST(req: NextRequest) {
   const creds = await getOrgCredentials(ctx.orgId);
   if (!creds) return jsonError("Workspace is not configured.", 500);
 
+  // Phase 3, Section 42: refuse to send against a connection already known
+  // to be broken, instead of hitting Meta with a request that will fail.
+  const blockReason = await getConnectionBlockReason(ctx.orgId);
+  if (blockReason) return jsonError(blockReason, 409);
+
   const cap = await checkSendCap(ctx.orgId, creds.dailySendCap);
   if (!cap.allowed)
     return jsonError(`Daily send limit reached (${cap.cap}). Try again tomorrow.`, 429);
@@ -113,6 +118,7 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (err) {
+    markConnectionInvalidOnAuthError(ctx.orgId, err);
     const msg = sanitizeProviderError(err, ctx.orgId);
     await db.from("messages").insert({
       org_id: ctx.orgId, conversation_id: conversationId, direction: "out",

@@ -266,6 +266,47 @@ export function isWithinBusinessHours(h: BusinessHours, now = new Date()): boole
    Daily send cap
    ========================================================================== */
 
+/**
+ * Phase 3, Section 42: if a send fails because of a Meta auth/permission
+ * problem (not a transient/recipient-specific error), record that on
+ * org_settings so subsequent sends can proactively refuse instead of
+ * hammering an account that will fail every single time until someone
+ * fixes the token. Fire-and-forget -- this must never block or fail the
+ * caller's own error handling.
+ */
+export function markConnectionInvalidOnAuthError(orgId: string, err: unknown): void {
+  const code = (err as { code?: number } | undefined)?.code;
+  let status: string | null = null;
+  if (code === 190) status = "expired";
+  else if (code === 200 || code === 10) status = "permission_error";
+  if (!status) return;
+
+  const message = err instanceof Error ? err.message : String(err);
+  createAdminClient().from("org_settings").update({
+    meta_connection_status: status,
+    meta_connection_checked_at: new Date().toISOString(),
+    meta_connection_error: message.slice(0, 500),
+  }).eq("org_id", orgId).then(() => {}, () => {});
+}
+
+/**
+ * Phase 3, Section 42: "Do NOT continue blindly sending messages" once a
+ * connection is known-bad. Call this before attempting a send; if it
+ * returns a blocking reason, refuse the send instead of hitting the
+ * provider (which would fail anyway) or, worse, appearing to succeed
+ * against stale cached credentials.
+ */
+export async function getConnectionBlockReason(orgId: string): Promise<string | null> {
+  const db = createAdminClient();
+  const { data } = await db.from("org_settings")
+    .select("meta_connection_status").eq("org_id", orgId).maybeSingle();
+  const status = data?.meta_connection_status;
+  if (status === "expired") return "The WhatsApp connection's access token has expired. Reconnect it on the Settings page before sending.";
+  if (status === "invalid") return "The WhatsApp connection is invalid. Test and fix it on the Settings page before sending.";
+  if (status === "permission_error") return "The WhatsApp connection is missing a required permission. Check it on the Settings page before sending.";
+  return null;
+}
+
 export async function checkSendCap(
   orgId: string,
   cap: number

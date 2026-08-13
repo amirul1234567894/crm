@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getOrgCredentialsBySlug } from "@/lib/tenant";
+import { getOrgCredentialsBySlug, getConnectionBlockReason, markConnectionInvalidOnAuthError } from "@/lib/tenant";
 import { safeEqual } from "@/lib/crypto";
 import { sendText, sendTemplate } from "@/lib/meta/whatsapp";
 import { sendDirectMessage } from "@/lib/meta/messenger";
@@ -126,6 +126,14 @@ export async function POST(req: NextRequest) {
   // carry credentials), this caps the blast radius per org.
   const rl = await limits.n8n(creds.orgId);
   if (!rl.success) return NextResponse.json({ error: "Rate limited. Slow down." }, { status: 429 });
+
+  // Phase 3, Section 42: sending actions must not run against a connection
+  // already known to be broken. Non-sending actions (update_lead,
+  // due_followups, sla_breaches) don't touch Meta and are unaffected.
+  if (action === "send_message" || action === "send_template") {
+    const blockReason = await getConnectionBlockReason(creds.orgId);
+    if (blockReason) return NextResponse.json({ error: blockReason }, { status: 409 });
+  }
 
   try {
     switch (action) {
@@ -330,6 +338,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Unknown action" }, { status: 400 });
     }
   } catch (err: any) {
+    if (action === "send_message" || action === "send_template") {
+      markConnectionInvalidOnAuthError(creds.orgId, err);
+    }
     console.error(`[${slug}] n8n action ${action} failed:`, err?.message);
     return NextResponse.json({ error: "Action failed" }, { status: 500 });
   }

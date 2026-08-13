@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireOrg, getOrgCredentials, checkSendCap, isWithinBusinessHours } from "@/lib/tenant";
+import { requireOrg, getOrgCredentials, checkSendCap, isWithinBusinessHours, getConnectionBlockReason, markConnectionInvalidOnAuthError } from "@/lib/tenant";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendTemplate, sendText } from "@/lib/meta/whatsapp";
 import { parseBody, campaignSend } from "@/lib/schemas";
@@ -71,6 +71,15 @@ export async function POST(req: NextRequest) {
 
   const creds = await getOrgCredentials(ctx.orgId);
   if (!creds) return jsonError("Workspace not configured.", 500);
+
+  // Phase 3, Section 42: refuse to run a broadcast against a connection
+  // already known to be broken -- do not burn through the audience with
+  // requests that will all fail anyway.
+  const blockReason = await getConnectionBlockReason(ctx.orgId);
+  if (blockReason) {
+    await db.from("campaigns").update({ status: "failed" }).eq("id", campaignId);
+    return jsonError(blockReason, 409);
+  }
 
   const cap = await checkSendCap(ctx.orgId, creds.dailySendCap);
   if (!cap.allowed)
@@ -205,6 +214,7 @@ export async function POST(req: NextRequest) {
       }
       sent++;
     } catch (err) {
+      markConnectionInvalidOnAuthError(ctx.orgId, err);
       // Phase 1, Section 28: retry system. Transient errors (rate limit, timeout,
       // network blip) get requeued for the next chunk claim; everything else
       // (invalid recipient, rejected template, bad parameters, permission
