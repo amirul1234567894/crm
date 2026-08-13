@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   if (!lead?.opt_in)
     return jsonError("This contact opted out of messages.", 409);
 
-  // OWNERSHIP LOCK — onno keu ei thread e active thakle reply block
+  // OWNERSHIP LOCK -- block replies if someone else is actively on this thread
   if (
     conv.claimed_by &&
     conv.claimed_by !== ctx.userId &&
