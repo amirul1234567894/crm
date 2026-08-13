@@ -74,6 +74,30 @@ export default function SettingsPage() {
     load();
   }
 
+  // Phase 3, Section 5/41: safe, read-only Meta connection check.
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function testConnection() {
+    setTestBusy(true); setTestResult(null);
+    try {
+      const res = await fetch("/api/org/meta-connection/test", { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setTestResult({ ok: false, text: j.error ?? "Test failed." });
+      } else if (j.ok) {
+        setTestResult({ ok: true, text: `Connected -- ${j.display_number ?? "number"}${j.quality_rating ? ` (quality: ${j.quality_rating})` : ""}` });
+      } else {
+        setTestResult({ ok: false, text: j.error ?? "Connection test failed." });
+      }
+    } catch {
+      setTestResult({ ok: false, text: "Network error testing the connection." });
+    } finally {
+      setTestBusy(false);
+      load();
+    }
+  }
+
   if (org.role !== "owner" && !org.isSuperadmin) {
     return (
       <div className="p-6">
@@ -144,6 +168,33 @@ export default function SettingsPage() {
             <input className="input font-mono" type="password" placeholder="notun secret dile replace hobe" value={secretsForm.meta_app_secret} onChange={(e) => setSecretsForm({ ...secretsForm, meta_app_secret: e.target.value })} />
           </div>
         </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line p-3 dark:border-slate-700">
+          <span className="text-xs font-semibold">Connection status:</span>
+          <span className={`badge ${
+            data.settings.meta_connection_status === "connected" ? "bg-emerald-100 text-emerald-700"
+            : ["expired", "invalid", "permission_error"].includes(data.settings.meta_connection_status)
+              ? "bg-rose-100 text-rose-700"
+              : "bg-slate-100 text-slate-500"
+          }`}>
+            {data.settings.meta_connection_status ?? "unknown"}
+          </span>
+          {data.settings.meta_connection_checked_at && (
+            <span className="text-2xs text-muted">checked {new Date(data.settings.meta_connection_checked_at).toLocaleString()}</span>
+          )}
+          {data.settings.last_webhook_at && (
+            <span className="text-2xs text-muted">&middot; last webhook {new Date(data.settings.last_webhook_at).toLocaleString()}</span>
+          )}
+          <button className="btn-ghost !px-2.5 !py-1 text-xs" disabled={testBusy} onClick={testConnection}>
+            {testBusy ? "Testing..." : "Test Connection"}
+          </button>
+          {testResult && (
+            <span className={`text-2xs font-medium ${testResult.ok ? "text-emerald-700" : "text-rose-600"}`}>{testResult.text}</span>
+          )}
+          {data.settings.meta_connection_error && (
+            <div className="w-full text-2xs text-rose-600">Last error: {data.settings.meta_connection_error}</div>
+          )}
+        </div>
+
         <div className="rounded-lg bg-slate-50 p-3 text-xs dark:bg-slate-800/60">
           <div className="mb-1 font-semibold">Meta webhook setup (developers.facebook.com e boshabi):</div>
           <div>Callback URL: <code className="select-all break-all font-mono text-brand">{data.callback_url}</code></div>
