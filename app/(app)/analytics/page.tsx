@@ -30,14 +30,14 @@ export default function AnalyticsPage() {
   }
 
   const kpis = [
-    { label: "Avg first response", value: rt?.avg_first_response_min != null ? `${rt.avg_first_response_min} min` : "—" },
-    { label: "Median first response", value: rt?.median_first_response_min != null ? `${rt.median_first_response_min} min` : "—" },
-    { label: "Avg resolution", value: rt?.avg_resolution_min != null ? `${Math.round(rt.avg_resolution_min / 60)} h` : "—" },
-    { label: "SLA breaches", value: rt ? rt.sla_first_breaches + rt.sla_resolve_breaches : "—" },
-    { label: "Conversations", value: rt?.total ?? "—" },
-    { label: "Closed", value: rt?.closed ?? "—" },
-    { label: "New leads", value: src?.total ?? "—" },
-    { label: "Conversion", value: src ? `${src.conversion_pct}%` : "—" },
+    { label: "Avg first response", value: rt?.avg_first_response_min != null ? `${rt.avg_first_response_min} min` : "--" },
+    { label: "Median first response", value: rt?.median_first_response_min != null ? `${rt.median_first_response_min} min` : "--" },
+    { label: "Avg resolution", value: rt?.avg_resolution_min != null ? `${Math.round(rt.avg_resolution_min / 60)} h` : "--" },
+    { label: "SLA breaches", value: rt ? rt.sla_first_breaches + rt.sla_resolve_breaches : "--" },
+    { label: "Conversations", value: rt?.total ?? "--" },
+    { label: "Closed", value: rt?.closed ?? "--" },
+    { label: "New leads", value: src?.total ?? "--" },
+    { label: "Conversion", value: src ? `${src.conversion_pct}%` : "--" },
   ];
 
   return (
@@ -134,12 +134,12 @@ export default function AnalyticsPage() {
                 </td>
                 <td className="td tabular-nums">{s.messages_sent}</td>
                 <td className="td tabular-nums">{s.conversations_touched}</td>
-                <td className="td tabular-nums">{s.avg_first_response_min != null ? `${s.avg_first_response_min}m` : "—"}</td>
+                <td className="td tabular-nums">{s.avg_first_response_min != null ? `${s.avg_first_response_min}m` : "--"}</td>
                 <td className="td tabular-nums">{s.open_assigned}</td>
               </tr>
             ))}
             {staff.length === 0 && (
-              <tr><td className="td text-muted" colSpan={7}>Loading…</td></tr>
+              <tr><td className="td text-muted" colSpan={7}>Loading...</td></tr>
             )}
           </tbody>
         </table>
