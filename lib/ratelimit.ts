@@ -65,4 +65,7 @@ export const limits = {
   admin: (userId: string) => rateLimit(`adm:${userId}`, 60, 60),
   campaignSend: (orgId: string) => rateLimit(`camp:${orgId}`, 60, 60),
   n8n: (orgId: string) => rateLimit(`n8n:${orgId}`, 60, 60),
+  // Phase 4, Section 55: protect the Groq account from one workspace
+  // consuming unlimited AI requests.
+  ai: (orgId: string) => rateLimit(`ai:${orgId}`, 30, 60),
 };
