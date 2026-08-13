@@ -229,6 +229,23 @@ export default function CampaignsPage() {
     load();
   }
 
+  // Phase 3, Section 43/48: cancel is permanent (unlike Pause, which is
+  // resumable) -- still-pending recipients are marked cancelled server-side
+  // via cancel_campaign(), so they can never be accidentally resumed later.
+  async function cancelCampaign(id: string, name: string) {
+    if (!confirm(`Cancel "${name}"? Recipients who have not been sent to yet will NOT receive this broadcast. This cannot be undone.`)) return;
+    setBusy(id); setErr("");
+    try {
+      const res = await fetch(`/api/campaigns/${id}/cancel`, { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) setErr(j.error ?? "Could not cancel the broadcast.");
+    } catch {
+      setErr("Network error cancelling the broadcast.");
+    } finally {
+      setBusy(null); load();
+    }
+  }
+
   function updateMapping(i: number, patch: Partial<VariableMapping>) {
     setVariableMapping((arr) => arr.map((x, idx) => (idx === i ? { ...x, ...patch } : x)));
   }
@@ -441,6 +458,10 @@ export default function CampaignsPage() {
                       </button>
                       {c.status === "running" && (
                         <button className="btn-ghost !px-2.5 !py-1 text-xs" onClick={() => pauseCampaign(c.id)}>Pause</button>
+                      )}
+                      {(c.status === "running" || c.status === "paused" || c.status === "draft") && (
+                        <button className="btn-ghost !px-2.5 !py-1 text-xs text-rose-600" disabled={busy === c.id}
+                          onClick={() => cancelCampaign(c.id, c.name)}>Cancel</button>
                       )}
                     </div>
                   )}
