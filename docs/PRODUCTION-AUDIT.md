@@ -1076,3 +1076,51 @@ Ekhon jodi jigges korish "kon 3 ta age korbo" — ami bolbo:
 3. `grep -r "service_role" .next/static/` (30 second)
 
 Ei tinta na korle client onboard korish na.
+
+
+---
+
+# PART 6 -- Phase 1 + Phase 2 closure audit (post-hoc session)
+
+Verified against live database + full route/lib code, not just this doc's
+original claims (several items below were already fixed by later commits
+that predate this note but postdate this doc's original writing).
+
+## Fixed in this session
+- CRITICAL: leads_channel_uid_unique / messages_provider_msg_id_unique were
+  GLOBAL unique constraints (no org_id) -- the same real customer messaging
+  two different clients' WhatsApp numbers would silently fail to create a
+  lead in the second org, dropping the inbound message with no error
+  logged anywhere. Fixed in 007_fix_cross_tenant_channel_uid_bug.sql.
+- n8n send_message/send_template now check the lead's automation_state
+  server-side (whitelist: only "active"/"waiting" may receive an automated
+  send) -- closes a gap where a stopped/human_handoff/opted_out lead could
+  still receive an automated message if an n8n workflow's own /status
+  recheck was skipped or raced.
+- update_lead (webhooks/n8n) now accepts automation_state, stop_reason,
+  next_follow_up_at, follow_up_count -- n8n can report follow-up lifecycle
+  through the official API instead of needing direct database access
+  (Phase 2, Section 4 explicitly forbids the latter).
+- broadcast.created / broadcast.started / broadcast.completed events added
+  (Phase 1, Section 33's event list was missing these three).
+- Migration history was out of sync with the live schema (automation_events,
+  idempotency_keys, leads automation-lifecycle columns, messages.source,
+  and several constraints existed live but in no 000-006 migration file).
+  Captured in 007-008 so a fresh install now matches production.
+
+## Known, accepted gap -- NOT fixed, by design decision
+- Phase 2, Section 11 ("Workspace Automation Settings": Automation Enabled
+  ON/OFF, Max Follow-Ups, Delay Between Follow-Ups, Default Reply Template,
+  configurable per workspace) has no dedicated settings columns, no n8n-
+  facing API action to read them, and no UI. The app/(app)/automation/rules
+  folder is an empty scaffold.
+  Decision: left unimplemented for now. This is a configurability gap, not
+  a safety gap -- every stop condition (customer reply, opt-out, human
+  takeover, lead won/lost) is already enforced server-side regardless of
+  workspace config, verified via /api/leads/:id/status and the
+  automation_state whitelist fix above. Phase 2, Section 27 explicitly
+  permits per-workspace values to live inside each org's own n8n workflow
+  configuration rather than in a shared CRM settings UI ("Pass workspace-
+  specific configuration dynamically... reusable architecture where it does
+  not reduce reliability"). Revisit if/when a client actually needs to
+  change these values without editing their n8n workflow directly.
