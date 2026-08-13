@@ -12,6 +12,7 @@ interface Lead {
   company: string | null; source: string; status: string; priority: string;
   score: number; tags: string[]; assigned_to: string | null;
   created_at: string; last_activity_at: string; is_blocked: boolean; is_spam: boolean;
+  ai_score: number | null; ai_intent: string | null; ai_confidence: number | null;
 }
 interface Member { id: string; full_name: string | null; email: string | null }
 
@@ -257,7 +258,7 @@ function LeadsInner() {
                   onChange={(e) => setSel(e.target.checked ? new Set(leads.map((l) => l.id)) : new Set())} />
               </th>
               <th className="th">Lead</th><th className="th">Status</th><th className="th">Priority</th>
-              <th className="th">Score</th><th className="th">Source</th><th className="th">Owner</th>
+              <th className="th">Score</th><th className="th">AI</th><th className="th">Source</th><th className="th">Owner</th>
               <th className="th">Age</th><th className="th">Tags</th>
             </tr>
           </thead>
@@ -297,6 +298,23 @@ function LeadsInner() {
                 <td className="td"><span className={`badge ${STATUS_BADGE[l.status] ?? ""}`}>{l.status}</span></td>
                 <td className="td capitalize">{l.priority}</td>
                 <td className="td tabular-nums">{l.score}</td>
+                <td className="td">
+                  {l.ai_score != null ? (
+                    <span
+                      className={`badge ${
+                        l.ai_score >= 80 ? "bg-emerald-100 text-emerald-700"
+                        : l.ai_score >= 60 ? "bg-sky-100 text-sky-700"
+                        : l.ai_score >= 30 ? "bg-amber-100 text-amber-700"
+                        : "bg-slate-100 text-slate-500"
+                      }`}
+                      title={l.ai_intent ? `Intent: ${l.ai_intent}` : undefined}
+                    >
+                      {l.ai_score}{l.ai_intent ? ` \u00b7 ${l.ai_intent}` : ""}
+                    </span>
+                  ) : (
+                    <span className="text-2xs text-muted">--</span>
+                  )}
+                </td>
                 <td className="td capitalize">{l.source}</td>
                 <td className="td text-xs">
                   {members.find((m) => m.id === l.assigned_to)?.full_name?.split(" ")[0] ?? <span className="text-muted">—</span>}
@@ -317,13 +335,13 @@ function LeadsInner() {
               </tr>
             ))}
             {loading && (
-              <tr><td className="td py-8 text-center text-muted" colSpan={9}>Loading leads...</td></tr>
+              <tr><td className="td py-8 text-center text-muted" colSpan={10}>Loading leads...</td></tr>
             )}
             {!loading && loadErr && (
-              <tr><td className="td py-8 text-center text-rose-600" colSpan={9}>{loadErr}</td></tr>
+              <tr><td className="td py-8 text-center text-rose-600" colSpan={10}>{loadErr}</td></tr>
             )}
             {!loading && !loadErr && leads.length === 0 && (
-              <tr><td className="td py-8 text-center text-muted" colSpan={9}>No leads match these filters.</td></tr>
+              <tr><td className="td py-8 text-center text-muted" colSpan={10}>No leads match these filters.</td></tr>
             )}
           </tbody>
         </table>
