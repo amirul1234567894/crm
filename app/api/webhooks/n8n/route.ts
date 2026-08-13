@@ -247,6 +247,8 @@ export async function POST(req: NextRequest) {
 
       case "update_lead": {
         const leadId = String(payload.lead_id ?? "");
+        if (!leadId) return NextResponse.json({ error: "lead_id required" }, { status: 400 });
+
         const patch: Record<string, unknown> = {};
         if (typeof payload.status === "string") patch.status = payload.status;
         if (typeof payload.score === "number") patch.score = Math.max(0, Math.min(100, payload.score));
@@ -255,9 +257,49 @@ export async function POST(req: NextRequest) {
             .eq("org_id", creds.orgId).maybeSingle();
           patch.tags = Array.from(new Set([...(lead?.tags ?? []), payload.add_tag]));
         }
-        if (!leadId || !Object.keys(patch).length)
+
+        // Phase 2, Section 15/16/26/42: n8n owns follow-up scheduling and
+        // counting, but the CRM stays the source of truth for automation
+        // lifecycle state. This lets n8n report state changes through the
+        // official API instead of touching the database directly.
+        const ALLOWED_AUTOMATION_STATES = [
+          "active", "waiting", "paused", "stopped", "completed",
+          "human_handoff", "opted_out", "failed",
+        ];
+        if (typeof payload.automation_state === "string") {
+          if (!ALLOWED_AUTOMATION_STATES.includes(payload.automation_state)) {
+            return NextResponse.json({ error: "Invalid automation_state" }, { status: 400 });
+          }
+          patch.automation_state = payload.automation_state;
+          // Terminal states get a stopped_at stamp automatically, same as
+          // the other stop paths in the app (opt-out keyword, human
+          // takeover), so /api/leads/:id/status and reporting stay
+          // consistent no matter which code path caused the stop.
+          if (["stopped", "completed", "human_handoff", "opted_out", "failed"].includes(payload.automation_state)) {
+            patch.automation_stopped_at = new Date().toISOString();
+          }
+        }
+        if (typeof payload.stop_reason === "string") {
+          patch.stop_reason = payload.stop_reason.slice(0, 500);
+        }
+        if (typeof payload.next_follow_up_at === "string") {
+          const parsedDate = new Date(payload.next_follow_up_at);
+          if (isNaN(parsedDate.getTime())) {
+            return NextResponse.json({ error: "next_follow_up_at must be a valid ISO date" }, { status: 400 });
+          }
+          patch.next_follow_up_at = parsedDate.toISOString();
+        }
+        if (typeof payload.follow_up_count === "number") {
+          patch.follow_up_count = Math.max(0, Math.floor(payload.follow_up_count));
+        }
+
+        if (!Object.keys(patch).length)
           return NextResponse.json({ error: "lead_id + fields required" }, { status: 400 });
-        await db.from("leads").update(patch).eq("id", leadId).eq("org_id", creds.orgId);
+
+        const { error: updateLeadError } = await db.from("leads").update(patch)
+          .eq("id", leadId).eq("org_id", creds.orgId);
+        if (updateLeadError) return NextResponse.json({ error: "Could not update lead" }, { status: 500 });
+
         return NextResponse.json({ ok: true });
       }
 
