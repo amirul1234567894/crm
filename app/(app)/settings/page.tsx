@@ -233,34 +233,17 @@ export default function SettingsPage() {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="text-sm font-bold">AI Assistant (Phase 4)</h2>
+        <h2 className="text-sm font-bold">AI lead scoring</h2>
         <label className="flex items-center gap-2 text-[13px]">
           <input type="checkbox" checked={form.ai_enabled} onChange={(e) => set("ai_enabled", e.target.checked)} />
-          AI enabled for this workspace (lead scoring, intent detection, conversation summaries, reply suggestions)
+          Automatically score and classify incoming leads (used by n8n to prioritise follow-ups)
         </label>
-        <div className="grid gap-3 md:grid-cols-2">
+        {form.ai_enabled && (
           <div>
-            <label className="label">Tone</label>
-            <select className="input" value={form.ai_tone} onChange={(e) => set("ai_tone", e.target.value)}>
-              <option value="professional">Professional</option>
-              <option value="friendly">Friendly</option>
-              <option value="casual">Casual</option>
-              <option value="formal">Formal</option>
-            </select>
+            <label className="label">Business context (helps AI classify leads correctly -- optional)</label>
+            <textarea className="input min-h-[70px]" value={form.ai_business_context} onChange={(e) => set("ai_business_context", e.target.value)} placeholder="We sell... typical customers ask about..." />
           </div>
-          <div>
-            <label className="label">Auto-reply level</label>
-            <select className="input" value={form.ai_auto_reply_level} onChange={(e) => set("ai_auto_reply_level", +e.target.value)}>
-              <option value={1}>Level 1 -- Suggestions only (agent must send)</option>
-              <option value={2}>Level 2 -- Low-risk FAQ auto reply</option>
-              <option value={3}>Level 3 -- Advanced automation</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="label">Business context (products, pricing, policies -- AI will never invent facts beyond this)</label>
-          <textarea className="input min-h-[100px]" value={form.ai_business_context} onChange={(e) => set("ai_business_context", e.target.value)} placeholder="We sell... Prices start at... Delivery takes... Returns within..." />
-        </div>
+        )}
       </section>
 
       <section className="card space-y-3">
