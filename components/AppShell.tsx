@@ -137,7 +137,7 @@ export default function AppShell({
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-[16.5rem] flex-col border-r border-line bg-white dark:border-slate-800 dark:bg-slate-900
-                    transition-transform duration-200 lg:static lg:translate-x-0
+                    transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0
                     ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="flex h-14 items-center justify-between border-b border-line px-4 dark:border-slate-800 lg:h-16">
