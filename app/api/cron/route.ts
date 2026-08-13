@@ -32,8 +32,20 @@ export async function GET(req: NextRequest) {
   const db = createAdminClient();
   const report = {
     scheduled_sent: 0, scheduled_failed: 0, sla_breaches: 0, campaigns_activated: 0,
-    stale_sending_recovered: 0,
+    stale_sending_recovered: 0, campaign_chunks_processed: 0,
   };
+
+  // Free-tier reality check (Section 36/45): Vercel Hobby only runs its
+  // own Cron once a day, so n8n's Schedule node calling this endpoint
+  // every few minutes is the REAL clock this app runs on. Each tick must
+  // therefore push every running broadcast forward as far as possible
+  // (not just one 20-recipient chunk) within a safe time budget, staying
+  // well under the 60s maxDuration so this function is never killed
+  // mid-chunk (which is exactly what Section 45's stale-recovery exists
+  // to clean up after -- better to just not hit that path routinely).
+  const CRON_START = Date.now();
+  const TIME_BUDGET_MS = 45_000;
+  const timeLeft = () => TIME_BUDGET_MS - (Date.now() - CRON_START);
 
   // ---- -1. Stale broadcast recipients (Phase 3, Section 45) ----
   // If a worker crashed or the function was killed mid-chunk, some
@@ -56,24 +68,42 @@ export async function GET(req: NextRequest) {
     report.campaigns_activated++;
   }
 
-  // ---- 0b. Push forward any campaign still "running" (scheduled-just-activated,
-  // or a browser tab that closed mid-send) -- process one chunk per cron tick
-  // until it's done. Section 15/29: scheduled broadcasts must not get stuck.
-  const { data: runningCampaigns } = await db
-    .from("campaigns")
-    .select("id")
-    .eq("status", "running");
-  for (const c of runningCampaigns ?? []) {
-    try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
-      await fetch(`${appUrl}/api/campaigns/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-cron-secret": expected },
-        body: JSON.stringify({ campaignId: c.id }),
-      }).catch(() => {});
-    } catch {
-      // best-effort -- next cron tick will retry
+  // ---- 0b. Push forward EVERY campaign still "running" as far as
+  // possible this tick, round-robin, until the time budget runs out or
+  // they are all done. This is what makes broadcasts finish in minutes
+  // instead of hours when a browser tab is closed and the app is relying
+  // on this endpoint being polled every few minutes by n8n (Free-plan
+  // Vercel Cron only fires once a day). Round-robin means one huge
+  // campaign for Client A can never starve a smaller Client B campaign
+  // running at the same time.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  let activeCampaignIds: string[] = ((await db
+    .from("campaigns").select("id").eq("status", "running")).data ?? [])
+    .map((c: { id: string }) => c.id);
+
+  while (activeCampaignIds.length > 0 && timeLeft() > 5_000) {
+    const nextRound: string[] = [];
+    for (const campaignId of activeCampaignIds) {
+      if (timeLeft() <= 5_000) { nextRound.push(campaignId, ...activeCampaignIds.slice(activeCampaignIds.indexOf(campaignId) + 1)); break; }
+      try {
+        const res = await fetch(`${appUrl}/api/campaigns/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-cron-secret": expected },
+          body: JSON.stringify({ campaignId }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        const j = await res.json().catch(() => ({}));
+        report.campaign_chunks_processed++;
+        // Keep polling this campaign next round unless the chunk endpoint
+        // itself says it's done (or it errored -- either way, stop hammering
+        // a campaign that isn't making progress this tick; the next cron
+        // tick will pick it back up if it's still "running").
+        if (res.ok && !j.done) nextRound.push(campaignId);
+      } catch {
+        // best-effort -- next cron tick will retry this campaign
+      }
     }
+    activeCampaignIds = nextRound;
   }
 
   // ---- 1. Scheduled messages ----
