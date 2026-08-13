@@ -20,9 +20,9 @@ interface AudienceFilters {
 }
 interface AudiencePreview {
   total: number; eligible: number;
-  excluded: { opted_out: number; invalid_phone: number; blocked_or_spam: number };
+  excluded: { opted_out: number; invalid_phone: number; blocked_or_spam: number; missing_variable: number };
   eligibleLeadIds: string[];
-  sample: { id: string; name: string | null; phone: string | null }[];
+  sample: { id: string; name: string | null; phone: string | null; company: string | null }[];
 }
 
 const EMPTY_FILTERS: AudienceFilters = {
@@ -92,10 +92,18 @@ export default function CampaignsPage() {
     const t = setTimeout(async () => {
       setPreviewBusy(true);
       try {
+        const body = {
+          ...filters,
+          // Fix 4 (Phase 1, Section 19): once a template + its variable
+          // mapping are picked, the preview must also exclude leads whose
+          // mapped fields (e.g. company) are empty for that lead -- sending
+          // a template with a visible blank is worse than not sending it.
+          variableMapping: mode === "template" && templateId ? variableMapping : undefined,
+        };
         const res = await fetch("/api/campaigns/preview", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(filters),
+          body: JSON.stringify(body),
         });
         const j = await res.json().catch(() => null);
         if (!res.ok || !j) {
@@ -112,7 +120,7 @@ export default function CampaignsPage() {
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [showNew, filters]);
+  }, [showNew, filters, mode, templateId, variableMapping]);
 
   // Template pick change hole -- variable mapping reset kore template-er variable count onujayi
   useEffect(() => {
@@ -296,6 +304,7 @@ export default function CampaignsPage() {
                   <div><b>Selected:</b> {preview.total} &nbsp; <b>Eligible:</b> <span className="text-emerald-700">{preview.eligible}</span></div>
                   <div className="text-muted">
                     Excluded -- opted out: {preview.excluded.opted_out} - invalid/missing phone: {preview.excluded.invalid_phone} - blocked/spam: {preview.excluded.blocked_or_spam}
+                    {preview.excluded.missing_variable > 0 && <> - missing template info: {preview.excluded.missing_variable}</>}
                   </div>
                   {preview.sample.length > 0 && (
                     <div className="text-muted">Sample: {preview.sample.map((s) => s.name || s.phone).join(", ")}</div>

@@ -1,9 +1,9 @@
 /**
- * Rate limiting — audit H-1 fix.
+ * Rate limiting -- audit H-1 fix.
  *
  * Upstash env var thakle Upstash REST diye distributed limit,
  * na thakle in-memory sliding window (single instance e enough,
- * Vercel serverless e best-effort — production e Upstash recommend).
+ * Vercel serverless e best-effort -- production e Upstash recommend).
  */
 
 type Result = { success: boolean; remaining: number };
@@ -63,4 +63,6 @@ export const limits = {
   settings: (orgId: string) => rateLimit(`set:${orgId}`, 20, 60),
   importCsv: (orgId: string) => rateLimit(`imp:${orgId}`, 5, 60),
   admin: (userId: string) => rateLimit(`adm:${userId}`, 60, 60),
+  campaignSend: (orgId: string) => rateLimit(`camp:${orgId}`, 60, 60),
+  n8n: (orgId: string) => rateLimit(`n8n:${orgId}`, 60, 60),
 };
