@@ -3,6 +3,7 @@ import { sendText, normalisePhone } from "@/lib/meta/whatsapp";
 import { sendDirectMessage, fetchProfile } from "@/lib/meta/messenger";
 import { isWithinBusinessHours, type OrgCredentials } from "@/lib/tenant";
 import { emitEvent } from "@/lib/events";
+import { getLeadIntelligence } from "@/lib/ai/service";
 
 type Channel = "whatsapp" | "facebook" | "instagram";
 
@@ -135,6 +136,11 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
     });
     if (!inserted) continue; // duplicate — Meta retry pathiyeche
 
+    // Phase 4, Section 5/28: background lead-intelligence refresh -- never
+    // awaited, never blocks message processing, and getLeadIntelligence()
+    // internally throttles + no-ops entirely if AI is disabled for this org.
+    refreshLeadIntelligence(db, creds.orgId, lead.id).catch(() => {});
+
     if (await handleOptOut(db, creds, lead, conv, text, "whatsapp", waId)) continue;
 
     await runAutoReply(db, creds, {
@@ -185,6 +191,9 @@ async function handleDirectMessage(
     media_id: ev.message.attachments?.[0]?.payload?.url ?? null,
   });
   if (!inserted) return;
+
+  // Phase 4, Section 5/28: same background refresh as the WhatsApp path.
+  refreshLeadIntelligence(db, creds.orgId, lead.id).catch(() => {});
 
   if (await handleOptOut(db, creds, lead, conv, text, channel, senderId)) return;
 
@@ -571,6 +580,49 @@ async function insertInbound(
     data: { body: m.body, msg_type: m.msg_type },
   });
   return true;
+}
+
+/**
+ * Phase 4, Section 5/6/7/9/10/28: refreshes a lead's AI score/intent from
+ * its recent conversation. Throttled (skips if analyzed in the last 30
+ * minutes) so a fast back-and-forth conversation does not re-run this on
+ * every single inbound message.
+ */
+async function refreshLeadIntelligence(db: any, orgId: string, leadId: string): Promise<void> {
+  const { data: lead } = await db.from("leads")
+    .select("id, name, source, campaign_name, ai_updated_at")
+    .eq("id", leadId).maybeSingle();
+  if (!lead) return;
+
+  if (lead.ai_updated_at && Date.now() - new Date(lead.ai_updated_at).getTime() < 30 * 60_000) {
+    return;
+  }
+
+  const { data: recentMessages } = await db
+    .from("messages")
+    .select("direction, body, created_at, conversation_id, conversations!inner(lead_id)")
+    .eq("conversations.lead_id", leadId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const ordered = (recentMessages ?? [])
+    .slice().reverse()
+    .map((m: any) => ({ direction: m.direction, body: m.body ?? "" }));
+  if (!ordered.length) return;
+
+  const result = await getLeadIntelligence(orgId, {
+    leadName: lead.name, leadSource: lead.source, campaignName: lead.campaign_name,
+    recentMessages: ordered,
+  });
+  if (!result) return;
+
+  await db.from("leads").update({
+    ai_score: result.score,
+    ai_score_reasons: result.score_reasons,
+    ai_intent: result.intent,
+    ai_confidence: result.confidence,
+    ai_updated_at: new Date().toISOString(),
+  }).eq("id", leadId);
 }
 
 async function upsertLead(
