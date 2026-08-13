@@ -14,7 +14,7 @@ function LoginForm() {
   const [msg, setMsg] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // M-3 fix: open redirect বন্ধ — sudhu same-site path
+  // Open-redirect protection -- only same-site paths are allowed.
   const nextPath = (() => {
     const n = params.get("next") ?? "/dashboard";
     return n.startsWith("/") && !n.startsWith("//") ? n : "/dashboard";
@@ -84,7 +84,7 @@ function LoginForm() {
             </p>
           )}
           <button className="btn w-full" disabled={busy}>
-            {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Send reset link"}
+            {busy ? "Please wait..." : mode === "login" ? "Sign in" : "Send reset link"}
           </button>
         </form>
 
@@ -92,7 +92,7 @@ function LoginForm() {
           className="mt-4 text-xs text-brand hover:underline"
           onClick={() => { setMode(mode === "login" ? "forgot" : "login"); setMsg(null); }}
         >
-          {mode === "login" ? "Forgot password?" : "← Back to sign in"}
+          {mode === "login" ? "Forgot password?" : "\u2190 Back to sign in"}
         </button>
 
         <p className="mt-6 border-t border-line pt-4 text-2xs text-muted dark:border-slate-800">
