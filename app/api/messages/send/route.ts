@@ -72,6 +72,13 @@ export async function POST(req: NextRequest) {
       const { data: tpl } = await db.from("templates").select("*")
         .eq("id", templateId).eq("org_id", ctx.orgId).maybeSingle();
       if (!tpl) return jsonError("Template not found.", 404);
+      // Phase 3, Section 16: never send with a template that isn't (or is
+      // no longer) Meta-approved -- this is a server-side re-check
+      // independent of whatever the picker UI showed, since the template's
+      // provider status can change between page-load and send.
+      if (tpl.status !== "approved") {
+        return jsonError(`This template is ${tpl.status}, not approved, and cannot be sent.`, 409);
+      }
       body = fillVariables(tpl.body_text ?? tpl.name, {
         name: lead?.name, phone: lead?.phone, business: ctx.name,
       });

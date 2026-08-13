@@ -56,6 +56,19 @@ export async function POST(req: NextRequest) {
   if (!campaign) return jsonError("Campaign not found.", 404);
   if (campaign.status === "done") return NextResponse.json({ ok: true, done: true, sent: 0 });
 
+  // Phase 3, Section 16: never let a broadcast run against a template that
+  // isn't (or is no longer) Meta-approved -- a template can be rejected or
+  // disabled after the campaign draft was created, so this is re-checked
+  // on every chunk call, not just at creation time.
+  const campaignTemplate = campaign.templates as any;
+  if (campaignTemplate && campaignTemplate.status !== "approved") {
+    await db.from("campaigns").update({ status: "failed" }).eq("id", campaignId);
+    return jsonError(
+      `This campaign's template ("${campaignTemplate.name}") is ${campaignTemplate.status}, not approved, and cannot be sent.`,
+      409
+    );
+  }
+
   const creds = await getOrgCredentials(ctx.orgId);
   if (!creds) return jsonError("Workspace not configured.", 500);
 
