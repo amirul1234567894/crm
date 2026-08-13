@@ -178,6 +178,15 @@ export default function CampaignsPage() {
       detail: { name: name.trim(), eligible: preview.eligible },
     });
 
+    // Phase 1, Section 33: fire-and-forget -- if this fails (network blip,
+    // n8n misconfigured), the campaign itself is already created and must
+    // not be blocked or rolled back on account of an event-notification hiccup.
+    fetch("/api/campaigns/notify-created", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ campaignId: campaign.id }),
+    }).catch(() => {});
+
     setShowNew(false); setName(""); setBodyText(""); setTemplateId("");
     setFilters(EMPTY_FILTERS); setPreview(null); setVariableMapping([]);
     setScheduleMode("now"); setScheduledAt("");
