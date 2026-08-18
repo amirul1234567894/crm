@@ -11,7 +11,7 @@ export const maxDuration = 60;
 
 /**
  * Protita 1–5 min e call korbi (n8n Schedule node / Vercel Cron / UptimeRobot):
- *   GET /api/cron?secret=<CRON_SECRET>
+ *   GET /api/cron  (with header: x-cron-secret: <CRON_SECRET>)
  *
  * Ki kore:
  *  1. Due scheduled messages pathay (claim_due_scheduled — double-send nei)
@@ -19,12 +19,13 @@ export const maxDuration = 60;
  *  3. Failed scheduled retry (1 bar)
  */
 export async function GET(req: NextRequest) {
-  // 3 bhabe auth: ?secret= | x-cron-secret header | Vercel Cron er Authorization: Bearer
+  // P3 fix: query-string secret removed -- URLs land in request logs in
+  // plain text. Auth is header-only now: x-cron-secret, or Vercel Cron's
+  // automatic Authorization: Bearer.
   const expected = process.env.CRON_SECRET ?? "";
-  const q = new URL(req.url).searchParams.get("secret") ?? "";
   const h = req.headers.get("x-cron-secret") ?? "";
   const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const given = q || h || bearer;
+  const given = h || bearer;
   if (!expected || !safeEqual(given, expected)) {
     return NextResponse.json({ error: "Not authorised" }, { status: 401 });
   }

@@ -82,6 +82,7 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
     }
     if (st.status === "delivered") messagesPatch.delivered_at = new Date().toISOString();
     if (st.status === "read") messagesPatch.read_at = new Date().toISOString();
+    if (st.status === "failed") messagesPatch.failed_at = new Date().toISOString();
     await db
       .from("messages")
       .update(messagesPatch)
@@ -94,7 +95,7 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
     const recipientPatch: Record<string, unknown> = { status: st.status };
     if (st.status === "delivered") recipientPatch.delivered_at = new Date().toISOString();
     if (st.status === "read") recipientPatch.read_at = new Date().toISOString();
-    if (st.status === "failed") recipientPatch.error_text = st.errors?.[0]?.title ?? null;
+    if (st.status === "failed") { recipientPatch.error_text = st.errors?.[0]?.title ?? null; recipientPatch.failed_at = new Date().toISOString(); }
     await db
       .from("campaign_recipients")
       .update(recipientPatch)

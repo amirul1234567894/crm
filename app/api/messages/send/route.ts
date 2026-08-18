@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     const msg = sanitizeProviderError(err, ctx.orgId);
     await db.from("messages").insert({
       org_id: ctx.orgId, conversation_id: conversationId, direction: "out",
-      body, msg_type: templateId ? "template" : "text", status: "failed",
+      body, msg_type: templateId ? "template" : "text", status: "failed", failed_at: new Date().toISOString(),
       error_text: msg, is_automated: false, sender_id: ctx.userId,
       source: "manual_agent",
     });

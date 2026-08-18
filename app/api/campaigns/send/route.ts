@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
       .eq("id", r.lead_id).eq("org_id", ctx.orgId).maybeSingle();
     if (!lead || !lead.opt_in || lead.is_blocked || lead.is_spam) {
       await db.from("campaign_recipients").update({
-        status: "failed", error_text: "Skipped (opted out / blocked / spam)",
+        status: "failed", failed_at: new Date().toISOString(), error_text: "Skipped (opted out / blocked / spam)",
       }).eq("id", r.id);
       failed++;
       continue;
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     // created.
     if (tpl && mapping && hasMissingVariables(mapping, lead)) {
       await db.from("campaign_recipients").update({
-        status: "failed", error_text: "Skipped (template variable missing for this contact)",
+        status: "failed", failed_at: new Date().toISOString(), error_text: "Skipped (template variable missing for this contact)",
       }).eq("id", r.id);
       failed++;
       continue;
@@ -258,7 +258,7 @@ if (convId) {
         }).eq("id", r.id);
       } else {
         await db.from("campaign_recipients").update({
-          status: "failed", retry_count: nextRetryCount, error_text: safeMsg,
+          status: "failed", failed_at: new Date().toISOString(), retry_count: nextRetryCount, error_text: safeMsg,
         }).eq("id", r.id);
         failed++;
       }
