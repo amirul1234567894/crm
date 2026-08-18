@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   const challenge = url.searchParams.get("hub.challenge") ?? "";
 
   // Legacy verify: prothom org er verify token
-  const creds = await getOrgCredentialsBySlug("client-one");
+  const creds = await getOrgCredentialsBySlug((process.env.LEGACY_WEBHOOK_ORG_SLUG ?? ""));
   if (mode === "subscribe" && creds?.verifyToken && safeEqual(token, creds.verifyToken)) {
     return new NextResponse(challenge, { status: 200 });
   }

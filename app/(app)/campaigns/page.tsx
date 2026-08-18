@@ -20,7 +20,7 @@ interface AudienceFilters {
 }
 interface AudiencePreview {
   total: number; eligible: number;
-  excluded: { opted_out: number; invalid_phone: number; blocked_or_spam: number; missing_variable: number };
+  excluded: { opted_out: number; invalid_phone: number; blocked_or_spam: number; missing_variable: number; duplicate?: number };
   eligibleLeadIds: string[];
   sample: { id: string; name: string | null; phone: string | null; company: string | null }[];
 }
@@ -332,6 +332,7 @@ export default function CampaignsPage() {
                   <div className="text-muted">
                     Excluded -- opted out: {preview.excluded.opted_out} - invalid/missing phone: {preview.excluded.invalid_phone} - blocked/spam: {preview.excluded.blocked_or_spam}
                     {preview.excluded.missing_variable > 0 && <> - missing template info: {preview.excluded.missing_variable}</>}
+                    {(preview.excluded.duplicate ?? 0) > 0 && <> - duplicate phone: {preview.excluded.duplicate}</>}
                   </div>
                   {preview.sample.length > 0 && (
                     <div className="text-muted">Sample: {preview.sample.map((s) => s.name || s.phone).join(", ")}</div>

@@ -26,6 +26,7 @@ export interface AudiencePreview {
     blocked_or_spam: number;
     missing_variable: number;
     window_closed: number;
+    duplicate: number;
   };
   eligibleLeadIds: string[];
   sample: { id: string; name: string | null; phone: string | null; company: string | null }[];
@@ -92,10 +93,25 @@ export async function previewAudience(orgId: string, filters: AudienceFilters): 
     }
   }
 
+  // P2-b fix (Phase 1, Section 24 "Duplicate Protection"): two leads
+  // sharing the same phone number would otherwise each get their own
+  // recipient row, so the same person receives the broadcast twice.
+  // Keep the first eligible lead per phone; count the rest as excluded.
+  const seenPhones = new Set<string>();
+  const dedupedEligible: typeof eligible = [];
+  let duplicate = 0;
+  for (const l of eligible) {
+    const key = (l.phone ?? "").trim();
+    if (seenPhones.has(key)) { duplicate++; continue; }
+    seenPhones.add(key);
+    dedupedEligible.push(l);
+  }
+  eligible = dedupedEligible;
+
   return {
     total: leads.length,
     eligible: eligible.length,
-    excluded: { opted_out, invalid_phone, blocked_or_spam, missing_variable, window_closed },
+    excluded: { opted_out, invalid_phone, blocked_or_spam, missing_variable, window_closed, duplicate },
     eligibleLeadIds: eligible.map((l) => l.id),
     sample: eligible.slice(0, 5).map((l) => ({ id: l.id, name: l.name, phone: l.phone, company: l.company })),
   };
