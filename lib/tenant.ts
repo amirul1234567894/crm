@@ -137,6 +137,32 @@ const DEFAULT_HOURS: BusinessHours = {
   closed_text: "We are closed right now. We will reply when we open.",
 };
 
+/**
+ * P3 fix: decrypt() fails silently (returns "" + console.error only), so a
+ * changed/lost SECRETS_KEY surfaced as confusing "not configured" errors
+ * with the real cause buried in server logs. If a secret IS stored but
+ * decrypts to empty, log a critical Error Center entry so the workspace
+ * owner sees the real problem. Throttled to once/hour per org+secret per
+ * instance -- buildCredentials runs on every request.
+ */
+const decryptFailLoggedAt = new Map<string, number>();
+function decryptChecked(orgId: string, stored: string | null | undefined, name: string): string {
+  const plain = decrypt(stored);
+  if (stored && !plain) {
+    const key = `${orgId}:${name}`;
+    const last = decryptFailLoggedAt.get(key) ?? 0;
+    if (Date.now() - last > 60 * 60 * 1000) {
+      decryptFailLoggedAt.set(key, Date.now());
+      createAdminClient().rpc("log_error", {
+        p_org_id: orgId, p_severity: "critical", p_source: "crypto",
+        p_message: `Stored secret "${name}" could not be decrypted. The encryption key (SECRETS_KEY) has likely changed -- re-save the credentials on the Settings page.`,
+        p_context: { secret: name },
+      }).then(() => {}, () => {});
+    }
+  }
+  return plain;
+}
+
 function buildCredentials(row: any): OrgCredentials {
   const settings = row.org_settings ?? {};
   const secrets = row.org_secrets ?? {};
@@ -149,11 +175,11 @@ function buildCredentials(row: any): OrgCredentials {
     waBusinessId: settings.wa_business_id ?? "",
     fbPageId: settings.fb_page_id ?? "",
     igAccountId: settings.ig_account_id ?? "",
-    accessToken: decrypt(secrets.meta_access_token),
-    appSecret: decrypt(secrets.meta_app_secret),
-    verifyToken: decrypt(secrets.webhook_verify_token),
+    accessToken: decryptChecked(row.id, secrets.meta_access_token, "meta_access_token"),
+    appSecret: decryptChecked(row.id, secrets.meta_app_secret, "meta_app_secret"),
+    verifyToken: decryptChecked(row.id, secrets.webhook_verify_token, "webhook_verify_token"),
     n8nWebhookUrl: settings.n8n_webhook_url ?? "",
-    n8nSharedSecret: decrypt(secrets.n8n_shared_secret),
+    n8nSharedSecret: decryptChecked(row.id, secrets.n8n_shared_secret, "n8n_shared_secret"),
     greetingMessage: settings.greeting_message ?? "",
     awayMessage: settings.away_message ?? "",
     spamKeywords: settings.spam_keywords ?? [],
