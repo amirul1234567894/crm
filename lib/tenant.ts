@@ -307,9 +307,31 @@ export async function getConnectionBlockReason(orgId: string): Promise<string | 
   return null;
 }
 
+/**
+ * P3 fix: the daily cap "day" used to start at UTC midnight, so e.g. a
+ * Dhaka workspace's cap reset at 6 AM local and early-morning sends were
+ * counted against the previous day. Now the day starts at LOCAL midnight
+ * in the workspace's business-hours timezone.
+ */
+function startOfLocalDayUtc(tz: string): string {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz || "Asia/Dhaka",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  });
+  const p = Object.fromEntries(fmt.formatToParts(now).map((x) => [x.type, x.value]));
+  // Seconds elapsed since local midnight, subtracted from "now" in UTC ==
+  // the UTC instant of local midnight. No tz database needed.
+  // Some engines report midnight as hour "24" with hour12:false -- normalise.
+  const secsSinceMidnight = (Number(p.hour) % 24) * 3600 + Number(p.minute) * 60 + Number(p.second);
+  return new Date(now.getTime() - secsSinceMidnight * 1000).toISOString();
+}
+
 export async function checkSendCap(
   orgId: string,
-  cap: number
+  cap: number,
+  tz?: string
 ): Promise<{ allowed: boolean; sent: number; cap: number }> {
   const db = createAdminClient();
   const { count } = await db
@@ -317,7 +339,7 @@ export async function checkSendCap(
     .select("id", { count: "exact", head: true })
     .eq("org_id", orgId)
     .eq("direction", "out")
-    .gte("created_at", new Date().toISOString().slice(0, 10));
+    .gte("created_at", startOfLocalDayUtc(tz ?? ""));
 
   const sent = count ?? 0;
   return { allowed: sent < cap, sent, cap };

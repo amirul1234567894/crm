@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   const blockReason = await getConnectionBlockReason(ctx.orgId);
   if (blockReason) return jsonError(blockReason, 409);
 
-  const cap = await checkSendCap(ctx.orgId, creds.dailySendCap);
+  const cap = await checkSendCap(ctx.orgId, creds.dailySendCap, creds.businessHours.tz);
   if (!cap.allowed)
     return jsonError(`Daily send limit reached (${cap.cap}). Try again tomorrow.`, 429);
 
