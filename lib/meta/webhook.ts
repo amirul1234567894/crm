@@ -733,7 +733,6 @@ async function upsertConversation(
     const patch: Record<string, unknown> = {
       last_message_at: new Date().toISOString(),
       last_message_text: lastText.slice(0, 200),
-      unread_count: (existing.unread_count ?? 0) + 1,
       is_open: true,
       ...extra,
     };
@@ -749,7 +748,11 @@ async function upsertConversation(
       patch.first_inbound_at = new Date().toISOString();
     }
     await db.from("conversations").update(patch).eq("id", existing.id);
-    return { ...existing, ...patch, isNew: false };
+    // P3 fix: unread_count is incremented atomically in SQL (017) instead
+    // of read-then-write -- two near-simultaneous webhooks were both
+    // reading the same old value and losing a count.
+    await db.rpc("increment_unread", { p_conversation_id: existing.id });
+    return { ...existing, ...patch, unread_count: (existing.unread_count ?? 0) + 1, isNew: false };
   }
 
   const { data } = await db
