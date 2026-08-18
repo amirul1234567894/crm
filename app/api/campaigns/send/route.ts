@@ -206,9 +206,30 @@ export async function POST(req: NextRequest) {
       const { data: bconv } = await db.from("conversations")
         .select("id").eq("org_id", ctx.orgId).eq("lead_id", lead.id)
         .eq("channel", "whatsapp").maybeSingle();
-      if (bconv) {
+      // Bug 2 fix: sends to brand-new leads previously skipped the messages
+// insert (no conversation existed), so the daily cap undercounted and
+// broadcast history never appeared in the inbox. Create it if missing.
+let convId: string | null = bconv?.id ?? null;
+if (!convId) {
+  const { data: newConv, error: convErr } = await db
+    .from("conversations")
+    .insert({ org_id: ctx.orgId, lead_id: r.lead_id, channel: "whatsapp", status: "open" })
+    .select("id")
+    .maybeSingle();
+  if (convErr) {
+    // unique-constraint race: another worker created it, re-select
+    const { data: again } = await db
+      .from("conversations").select("id")
+      .eq("org_id", ctx.orgId).eq("lead_id", r.lead_id).eq("channel", "whatsapp")
+      .maybeSingle();
+    convId = again?.id ?? null;
+  } else {
+    convId = newConv?.id ?? null;
+  }
+}
+if (convId) {
         await db.from("messages").insert({
-          org_id: ctx.orgId, conversation_id: bconv.id, direction: "out",
+          org_id: ctx.orgId, conversation_id: convId, direction: "out",
           body: tpl ? (tpl.body_text ?? tpl.name) : (campaign.body_text ?? ""),
           msg_type: tpl ? "template" : "text",
           provider_msg_id: providerId || null, status: "sent",
@@ -216,7 +237,7 @@ export async function POST(req: NextRequest) {
         });
         await db.from("conversations").update({
           last_message_at: new Date().toISOString(),
-        }).eq("id", bconv.id);
+        }).eq("id", convId);
       }
       sent++;
     } catch (err) {
