@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
 
   let orgId: string;
   let userIdForLog: string | undefined;
+  let orgName = "";
   if (isCron) {
     const parsedCron = parseBody(campaignSend, await req.clone().json().catch(() => null));
     if (!parsedCron.ok) return jsonError(parsedCron.error);
@@ -33,13 +34,17 @@ export async function POST(req: NextRequest) {
       .from("campaigns").select("org_id").eq("id", parsedCron.data.campaignId).maybeSingle();
     if (!campaignRow) return jsonError("Campaign not found.", 404);
     orgId = campaignRow.org_id;
+    const { data: orgRow } = await createAdminClient()
+      .from("organizations").select("name").eq("id", orgId).maybeSingle();
+    orgName = orgRow?.name ?? "";
   } else {
     const guard = await requireOrg({ manager: true });
     if ("error" in guard) return jsonError(guard.error, guard.status);
     orgId = guard.ctx.orgId;
     userIdForLog = guard.ctx.userId;
+    orgName = guard.ctx.name;
   }
-  const ctx = { orgId, userId: userIdForLog, name: "" } as any;
+  const ctx = { orgId, userId: userIdForLog, name: orgName } as any;
 
   // Fix 2 (rate limiting): both the browser send-loop and the cron pusher
   // land here -- cap either path at a generous per-org rate so a stuck

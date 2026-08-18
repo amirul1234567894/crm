@@ -7,6 +7,7 @@ import { parseBody, sendMessage } from "@/lib/schemas";
 import { limits } from "@/lib/ratelimit";
 import { sanitizeProviderError, jsonError } from "@/lib/errors";
 import { fillVariables } from "@/lib/personalise";
+import { resolveTemplateParams, hasMissingVariables, type VariableMapping } from "@/lib/templateVariables";
 import { emitEvent } from "@/lib/events";
 
 export const dynamic = "force-dynamic";
@@ -74,6 +75,10 @@ export async function POST(req: NextRequest) {
   let providerId = "";
   try {
     if (templateId) {
+      // Bug 6 fix: WhatsApp templates only work on WhatsApp conversations.
+      if (conv.channel !== "whatsapp") {
+        return jsonError("Templates can only be sent on WhatsApp conversations.", 409);
+      }
       const { data: tpl } = await db.from("templates").select("*")
         .eq("id", templateId).eq("org_id", ctx.orgId).maybeSingle();
       if (!tpl) return jsonError("Template not found.", 404);
@@ -84,13 +89,26 @@ export async function POST(req: NextRequest) {
       if (tpl.status !== "approved") {
         return jsonError(`This template is ${tpl.status}, not approved, and cannot be sent.`, 409);
       }
+      // Bug 5 fix: templates with {{1}}.. variables were always sent with []
+      // params, which Meta rejects. Same default mapping as campaigns/send.
+      const varCount = tpl.variables ?? 0;
+      let bodyParams: string[] = [];
+      if (varCount > 0) {
+        const mapping: VariableMapping[] = Array(varCount).fill({ source: "name" });
+        if (hasMissingVariables(mapping, lead)) {
+          return jsonError(
+            "This template needs contact data (e.g. name) that this contact is missing.", 409
+          );
+        }
+        bodyParams = resolveTemplateParams(mapping, lead);
+      }
       body = fillVariables(tpl.body_text ?? tpl.name, {
         name: lead?.name, phone: lead?.phone, business: ctx.name,
       });
       providerId = await sendTemplate(
         { phoneNumberId: creds.waPhoneNumberId, accessToken: creds.accessToken },
         lead?.channel_uid || lead?.phone || "",
-        tpl.name, tpl.language ?? "en", []
+        tpl.name, tpl.language ?? "en", bodyParams
       );
     } else {
       const windowOpen =

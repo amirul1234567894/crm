@@ -31,7 +31,7 @@ export interface EmitEventInput {
   data?: Record<string, unknown>;
 }
 
-const N8N_PUSH_TIMEOUT_MS = 25_000;
+const N8N_PUSH_TIMEOUT_MS = 4_000;
 
 /**
  * Node's fetch() throws a generic "fetch failed" TypeError for almost any
