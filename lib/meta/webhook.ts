@@ -66,8 +66,20 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
     // and so a later status update can never accidentally look like it
     // happened before an earlier one.
     const messagesPatch: Record<string, unknown> = {
-      status: st.status, error_text: st.errors?.[0]?.title ?? null,
+      error_text: st.errors?.[0]?.title ?? null,
     };
+        // Bug 4 fix: delivery webhooks can arrive out of order. Status only moves
+    // forward (sent -> delivered -> read); "failed" always applies.
+    const STATUS_RANK: Record<string, number> = { pending: 0, queued: 0, sending: 1, sent: 2, delivered: 3, read: 4 };
+    const { data: curMsg } = await db
+      .from("messages").select("status")
+      .eq("org_id", creds.orgId).eq("provider_msg_id", st.id)
+      .maybeSingle();
+    const curRank = STATUS_RANK[(curMsg?.status as string) ?? ""] ?? -1;
+    const newRank = STATUS_RANK[st.status] ?? -1;
+    if (st.status === "failed" || newRank > curRank) {
+      messagesPatch.status = st.status;
+    }
     if (st.status === "delivered") messagesPatch.delivered_at = new Date().toISOString();
     if (st.status === "read") messagesPatch.read_at = new Date().toISOString();
     await db
