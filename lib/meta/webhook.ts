@@ -505,9 +505,13 @@ async function handleLeadAd(db: any, creds: OrgCredentials, value: any) {
   const leadgenId = value.leadgen_id;
   if (!leadgenId || !creds.accessToken) return;
 
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${leadgenId}?access_token=${creds.accessToken}`
-  );
+  // P3 fix: token moved from query string to Authorization header so it
+  // never lands in URL/request logs. Also added a timeout -- this fetch
+  // had none and runs inside the webhook path.
+  const res = await fetch(`https://graph.facebook.com/v21.0/${leadgenId}`, {
+    headers: { Authorization: `Bearer ${creds.accessToken}` },
+    signal: AbortSignal.timeout(10000),
+  });
   const data = await res.json().catch(() => null);
   if (!data?.field_data) return;
 

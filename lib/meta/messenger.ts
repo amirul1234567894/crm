@@ -14,10 +14,12 @@ export async function sendDirectMessage(opts: {
   if (!opts.pageId || !opts.accessToken)
     throw new Error("Messenger is not connected. Add credentials on the Settings page.");
   const res = await fetch(
-    `${GRAPH}/${opts.pageId}/messages?access_token=${encodeURIComponent(opts.accessToken)}`,
+    `${GRAPH}/${opts.pageId}/messages`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // P3 fix: token moved from query string to Authorization header so
+      // it never lands in URL/request logs.
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.accessToken}` },
       body: JSON.stringify({
         recipient: { id: opts.recipientId },
         messaging_type: "RESPONSE",
@@ -40,10 +42,10 @@ export async function sendTypingIndicator(opts: {
 }): Promise<void> {
   if (!opts.pageId || !opts.accessToken) return;
   await fetch(
-    `${GRAPH}/${opts.pageId}/messages?access_token=${encodeURIComponent(opts.accessToken)}`,
+    `${GRAPH}/${opts.pageId}/messages`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.accessToken}` },
       body: JSON.stringify({
         recipient: { id: opts.recipientId },
         sender_action: opts.on ? "typing_on" : "typing_off",
@@ -59,8 +61,8 @@ export async function fetchProfile(
 ): Promise<{ name: string | null }> {
   try {
     const res = await fetch(
-      `${GRAPH}/${psid}?fields=name,first_name,last_name&access_token=${encodeURIComponent(accessToken)}`,
-      { signal: AbortSignal.timeout(8000) }
+      `${GRAPH}/${psid}?fields=name,first_name,last_name`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(8000) }
     );
     const d = await res.json();
     const name = d?.name || [d?.first_name, d?.last_name].filter(Boolean).join(" ") || null;
