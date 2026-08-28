@@ -702,7 +702,9 @@ async function upsertLead(
     await emitEvent({
       orgId, eventType: "lead.created", eventId: `lead-created:${data.id}`,
       leadId: data.id, channel: input.source, source: input.source,
-      data: { name: data.name, phone: data.phone, campaign_name: data.campaign_name },
+      // channel_uid included so n8n can reply to Messenger/IG leads too --
+      // data.phone is null for those, PSID/IGSID lives in channel_uid.
+      data: { name: data.name, phone: data.phone, channel_uid: data.channel_uid, campaign_name: data.campaign_name },
     });
   }
 

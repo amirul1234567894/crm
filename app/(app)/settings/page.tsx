@@ -17,6 +17,11 @@ export default function SettingsPage() {
   const [secretsForm, setSecretsForm] = useState({ meta_access_token: "", meta_app_secret: "" });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // Regenerate korle notun n8n secret ekhane thake -- page reload na howa
+  // porjonto dekha jabe + copy kora jabe. (GET always masks it, tai ei
+  // state-i ekmatro jaygay full value ta thake.)
+  const [revealedN8nSecret, setRevealedN8nSecret] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/org/settings");
@@ -68,9 +73,11 @@ export default function SettingsPage() {
     setBusy(false);
     if (!res.ok) return setMsg({ ok: false, text: j.error ?? "Save failed." });
     if (j.n8n_shared_secret_plaintext) {
+      setRevealedN8nSecret(j.n8n_shared_secret_plaintext);
+      setCopied(false);
       setMsg({
         ok: true,
-        text: `Saved. New n8n shared secret (copy this into your n8n workflow now -- it will not be shown again): ${j.n8n_shared_secret_plaintext}`,
+        text: "Saved. New n8n shared secret generated -- copy it from the box below (it stays visible until you leave this page).",
       });
     } else {
       setMsg({ ok: true, text: "Saved." });
@@ -277,10 +284,38 @@ export default function SettingsPage() {
           <input className="input font-mono" value={form.n8n_webhook_url} onChange={(e) => set("n8n_webhook_url", e.target.value)} placeholder="https://your-n8n.onrender.com/webhook/leadflow" />
         </div>
         <div className="text-xs text-muted">
-          n8n shared secret: <code className="font-mono">{data.secrets.n8n_shared_secret || "not set"}</code>
+          n8n shared secret: <code className="font-mono">{revealedN8nSecret ?? (data.secrets.n8n_shared_secret || "not set")}</code>
           <button className="btn-ghost ml-2 !px-2 !py-0.5 text-xs" onClick={() => save({ regenerate_n8n_secret: true })}>Regenerate</button>
           <span className="ml-1">(after regenerating, update this in your n8n workflow&apos;s header too)</span>
         </div>
+        {revealedN8nSecret && (
+          <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-xs dark:border-emerald-800 dark:bg-emerald-950">
+            <div className="mb-1 font-semibold text-emerald-800 dark:text-emerald-300">
+              New shared secret -- copy it now. After you leave this page it will only show masked.
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 break-all rounded bg-white px-2 py-1 font-mono dark:bg-black/30">{revealedN8nSecret}</code>
+              <button
+                type="button"
+                className="btn-ghost !px-2 !py-1 text-xs"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(revealedN8nSecret);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  } catch {
+                    /* clipboard blocked -- user can select manually */
+                  }
+                }}
+              >
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+            <div className="mt-1 text-emerald-700 dark:text-emerald-400">
+              Paste this into your n8n workflow as the <code className="font-mono">x-crm-secret</code> comparison value.
+            </div>
+          </div>
+        )}
       </section>
 
       <div className="sticky bottom-3 flex justify-end">
