@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Login chara dhoka jay emon path */
-const PUBLIC = ["/login", "/api/webhooks", "/api/cron", "/api/campaigns/send"];
+const PUBLIC = ["/login", "/api/webhooks", "/api/cron", "/api/campaigns/send", "/privacy-policy.html"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
