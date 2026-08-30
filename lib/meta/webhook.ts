@@ -146,6 +146,7 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
       msg_type: msg.type ?? "text",
       provider_msg_id: msg.id,
       media_id: extractMediaId(msg),
+      channel: "whatsapp",
     });
     if (!inserted) continue; // duplicate — Meta retry pathiyeche
 
@@ -202,6 +203,7 @@ async function handleDirectMessage(
     msg_type: ev.message.attachments?.length ? "image" : "text",
     provider_msg_id: ev.message.mid,
     media_id: ev.message.attachments?.[0]?.payload?.url ?? null,
+    channel,
   });
   if (!inserted) return;
 
@@ -564,7 +566,7 @@ async function insertInbound(
   db: any,
   orgId: string,
   conversationId: string,
-  m: { body: string; msg_type: string; provider_msg_id?: string; media_id?: string | null }
+  m: { body: string; msg_type: string; provider_msg_id?: string; media_id?: string | null; channel: string }
 ): Promise<boolean> {
   const { data: inserted, error } = await db.from("messages").insert({
     org_id: orgId,
@@ -594,6 +596,7 @@ async function insertInbound(
     orgId, eventType: "message.received",
     eventId: m.provider_msg_id ? `msg-received:${m.provider_msg_id}` : undefined,
     conversationId, messageId: inserted?.id ?? null,
+    channel: m.channel,
     data: { body: m.body, msg_type: m.msg_type },
   });
   return true;
