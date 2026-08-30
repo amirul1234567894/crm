@@ -32,6 +32,7 @@ const GRAPH = "https://graph.facebook.com/v21.0";
 
 const CANNED: Record<Lang, Record<string, string>> = {
   en: {
+    fear: "💙 Don\'t worry — in most cases modern treatment is possible without a big operation. Dr. Amol Lahoti will examine you first and explain everything clearly before any procedure.\n🏥 Under the Government Scheme, treatment is COMPLETELY FREE if you have the necessary documents.\n\n📞 Call/WhatsApp: 9971121273 or 8805789301",
     location: "📍 The Vascular Center — Dr. Amol Lahoti\nCentury Hospital, Opposite Central Bus Stand, Chhatrapati Sambhaji Nagar (Aurangabad), Maharashtra.\n\n📞 Call/WhatsApp: 9971121273 or 8805789301",
     contact: "📞 Call/WhatsApp: 9971121273 or 8805789301\n\n📍 Century Hospital, Opposite Central Bus Stand, Chhatrapati Sambhaji Nagar (Aurangabad), Maharashtra.",
     timings: "🕐 For today's OPD timing please call/WhatsApp: 9971121273 or 8805789301.\n\n📍 Century Hospital, Opposite Central Bus Stand, Chhatrapati Sambhaji Nagar (Aurangabad).",
@@ -42,6 +43,7 @@ const CANNED: Record<Lang, Record<string, string>> = {
     other: "🙏 Thanks for your message! Our team will help you — please call/WhatsApp: 9971121273 or 8805789301.\n\nSend *Hi* to see the menu.",
   },
   hi: {
+    fear: "💙 घबराइए नहीं — ज़्यादातर मामलों में बिना बड़े ऑपरेशन के आधुनिक इलाज संभव है। डॉ. अमोल लहोटी पहले जांच करेंगे और हर चीज़ अच्छे से समझाएंगे।\n🏥 सरकारी योजना के तहत ज़रूरी दस्तावेज़ होने पर इलाज पूरी तरह मुफ़्त।\n\n📞 कॉल/WhatsApp: 9971121273 या 8805789301",
     location: "📍 The Vascular Center — Dr. Amol Lahoti\nसेंचुरी हॉस्पिटल, सेंट्रल बस स्टैंड के सामने, छत्रपति संभाजीनगर (औरंगाबाद), महाराष्ट्र।\n\n📞 कॉल/WhatsApp: 9971121273 या 8805789301",
     contact: "📞 कॉल/WhatsApp: 9971121273 या 8805789301\n\n📍 सेंचुरी हॉस्पिटल, सेंट्रल बस स्टैंड के सामने, छत्रपति संभाजीनगर (औरंगाबाद)।",
     timings: "🕐 OPD समय जानने के लिए कृपया कॉल/WhatsApp करें: 9971121273 या 8805789301।\n\n📍 सेंचुरी हॉस्पिटल, सेंट्रल बस स्टैंड के सामने, छत्रपति संभाजीनगर।",
@@ -52,6 +54,7 @@ const CANNED: Record<Lang, Record<string, string>> = {
     other: "🙏 आपके संदेश के लिए धन्यवाद! हमारी टीम आपकी मदद करेगी — कृपया कॉल/WhatsApp करें: 9971121273 या 8805789301।\n\nमेनू के लिए *Hi* भेजें।",
   },
   mr: {
+    fear: "💙 काळजी करू नका — बहुतेक वेळा मोठ्या ऑपरेशनशिवाय आधुनिक उपचार शक्य असतात. डॉ. अमोल लहोटी आधी तपासणी करतील आणि सर्व काही नीट समजावून सांगतील.\n🏥 सरकारी योजनेअंतर्गत आवश्यक कागदपत्रे असल्यास उपचार पूर्णपणे मोफत.\n\n📞 कॉल/WhatsApp: 9971121273 किंवा 8805789301",
     location: "📍 The Vascular Center — Dr. Amol Lahoti\nसेंच्युरी हॉस्पिटल, सेंट्रल बस स्टँड समोर, छत्रपती संभाजीनगर (औरंगाबाद), महाराष्ट्र.\n\n📞 कॉल/WhatsApp: 9971121273 किंवा 8805789301",
     contact: "📞 कॉल/WhatsApp: 9971121273 किंवा 8805789301\n\n📍 सेंच्युरी हॉस्पिटल, सेंट्रल बस स्टँड समोर, छत्रपती संभाजीनगर (औरंगाबाद).",
     timings: "🕐 OPD वेळ जाणून घेण्यासाठी कृपया कॉल/WhatsApp करा: 9971121273 किंवा 8805789301.\n\n📍 सेंच्युरी हॉस्पिटल, सेंट्रल बस स्टँड समोर, छत्रपती संभाजीनगर.",
@@ -85,6 +88,7 @@ function schemeText(prob: string, lang: Lang): string {
 const GREET = /^(hi+|hii+|hey+|hello+|hlo|helo|hola|hai+|namaste+|namaskar+|namashkar|menu|start|good\s*(morning|afternoon|evening|night)|नमस्ते|नमस्कार|हाय|हॅलो|हेलो|हैलो|👋|🙏)[\s!.,👋🙏]*$/i;
 
 const INTENTS: Array<[string, RegExp]> = [
+  ["fear", /\b(darr?|scared?|fear|afraid|tension|ghabra\w*|bhiti)\b|डर|घबरा|भीती|भिती/i],
   ["location", /(location|address|addres|map|kaha\b|kahan|kaha hai|kidhar|kothe|kuthe|pata\b|पता|कहां|कहाँ|कुठे|पत्ता)/i],
   ["contact", /(number|contact|phone|mobile|call\s*(kar|me|us)?|नंबर|संपर्क|फोन)/i],
   ["timings", /(timing|time\b|opd|open|close|kab\s|kitne baje|समय|वेळ|कब\b|कधी)/i],
@@ -95,6 +99,9 @@ const INTENTS: Array<[string, RegExp]> = [
 ];
 const MR_HINT = /(कुठे|कधी|आहे|किती|मोफत|कागदपत्र|तुम्ह|माझ|वेळ|पाठव)/;
 const DEVA = /[\u0900-\u097F]/;
+// Roman-script language hints: "mujhe dar lagta hai" -> Hindi, "mala tras ahe" -> Marathi
+const HI_ROMAN = /\b(mujhe|mujhko|mera|meri|mere|hamko|hume|kya|kaise|kyu|kyun|kyon|nahi|nahin|hai|hain|hoga|hota|hoti|lagta|lagti|chahiye|karna|karana|karwana|batao|bataiye|bataye|kab|ilaj|ilaaj|dard|sujan|paisa|paise)\b/i;
+const MR_ROMAN = /\b(mala|majha|mazha|maza|amhala|tumhala|ahe|aahe|nahi ahe|kasa|kashi|kuthe|kiti|pahije|hoto|hote|karaycha|karayche|dukhte|dukhtay|sujali|payat|tras)\b/i;
 
 function localIntent(t: string): string {
   for (const [name, re] of INTENTS) if (re.test(t)) return name;
@@ -277,6 +284,8 @@ export async function handleMenuBot(
       let lang: Lang;
       if (MR_HINT.test(t)) lang = "mr";
       else if (DEVA.test(t)) lang = (await getLang(db, from)) === "mr" ? "mr" : "hi";
+      else if (MR_ROMAN.test(t)) lang = "mr";
+      else if (HI_ROMAN.test(t)) lang = "hi";
       else lang = (await getLang(db, from)) || "en";
       const body = CANNED[lang][intent] || CANNED[lang].other;
       const pid = await sendText(
