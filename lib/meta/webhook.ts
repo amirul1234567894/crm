@@ -4,6 +4,7 @@ import { sendDirectMessage, fetchProfile } from "@/lib/meta/messenger";
 import { isWithinBusinessHours, type OrgCredentials } from "@/lib/tenant";
 import { emitEvent } from "@/lib/events";
 import { getLeadIntelligence } from "@/lib/ai/service";
+import { handleMenuBot } from "@/lib/meta/menu-bot";
 
 type Channel = "whatsapp" | "facebook" | "instagram";
 
@@ -161,6 +162,9 @@ async function handleWhatsApp(db: any, creds: OrgCredentials, value: any) {
     refreshLeadIntelligence(db, creds.orgId, lead.id).catch(() => {});
 
     if (await handleOptOut(db, creds, lead, conv, text, "whatsapp", waId)) continue;
+
+    // Instant menu bot (Vercel) -- menus/canned replies in 1-2s; tricky text -> n8n
+    await handleMenuBot(db, creds, conv, lead, msg, value.contacts?.[0]?.profile?.name ?? "");
   }
 }
 
