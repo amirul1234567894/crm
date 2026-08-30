@@ -6,7 +6,7 @@ import { useOrg } from "@/components/OrgProvider";
 
 interface SettingsResp {
   settings: Record<string, any>;
-  secrets: { meta_access_token: string; meta_app_secret: string; webhook_verify_token: string; n8n_shared_secret: string };
+  secrets: { meta_access_token: string; meta_page_token: string; meta_app_secret: string; webhook_verify_token: string; n8n_shared_secret: string };
   callback_url: string;
 }
 
@@ -14,7 +14,7 @@ export default function SettingsPage() {
   const org = useOrg();
   const [data, setData] = useState<SettingsResp | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
-  const [secretsForm, setSecretsForm] = useState({ meta_access_token: "", meta_app_secret: "" });
+  const [secretsForm, setSecretsForm] = useState({ meta_access_token: "", meta_page_token: "", meta_app_secret: "" });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   // Regenerate korle notun n8n secret ekhane thake -- page reload na howa
@@ -64,6 +64,7 @@ export default function SettingsPage() {
     payload.sla_resolution_min = Number(form.sla_resolution_min) || 1440;
     payload.ai_auto_reply_level = Number(form.ai_auto_reply_level) || 1;
     if (secretsForm.meta_access_token.trim()) payload.meta_access_token = secretsForm.meta_access_token.trim();
+    if (secretsForm.meta_page_token.trim()) payload.meta_page_token = secretsForm.meta_page_token.trim();
     if (secretsForm.meta_app_secret.trim()) payload.meta_app_secret = secretsForm.meta_app_secret.trim();
 
     const res = await fetch("/api/org/settings", {
@@ -82,7 +83,7 @@ export default function SettingsPage() {
     } else {
       setMsg({ ok: true, text: "Saved." });
     }
-    setSecretsForm({ meta_access_token: "", meta_app_secret: "" });
+    setSecretsForm({ meta_access_token: "", meta_page_token: "", meta_app_secret: "" });
     load();
   }
 
@@ -174,6 +175,10 @@ export default function SettingsPage() {
           <div>
             <label className="label">Access token <span className="font-normal text-muted">(current: {data.secrets.meta_access_token || "not set"})</span></label>
             <input className="input font-mono" type="password" placeholder="Enter a new token to replace it" value={secretsForm.meta_access_token} onChange={(e) => setSecretsForm({ ...secretsForm, meta_access_token: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Page token (FB/IG) <span className="font-normal text-muted">(current: {data.secrets.meta_page_token || "not set"})</span></label>
+            <input className="input font-mono" type="password" placeholder="Enter a new token to replace it" value={secretsForm.meta_page_token} onChange={(e) => setSecretsForm({ ...secretsForm, meta_page_token: e.target.value })} />
           </div>
           <div>
             <label className="label">App secret <span className="font-normal text-muted">(current: {data.secrets.meta_app_secret || "not set"})</span></label>

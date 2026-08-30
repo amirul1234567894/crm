@@ -184,7 +184,7 @@ async function handleDirectMessage(
   if (!senderId) return;
 
   const text = ev.message.text ?? "[attachment]";
-  const profile = await fetchProfile(senderId, creds.accessToken);
+  const profile = await fetchProfile(senderId, creds.pageToken);
 
   const lead = await upsertLead(db, creds.orgId, {
     channel_uid: senderId,
@@ -384,7 +384,7 @@ async function deliver(db: any, creds: OrgCredentials, ctx: ReplyCtx, text: stri
         {
           phoneNumberId: creds.waPhoneNumberId,
           businessId: creds.waBusinessId,
-          accessToken: creds.accessToken,
+          accessToken: creds.pageToken,
         },
         ctx.recipientId,
         text
@@ -392,7 +392,7 @@ async function deliver(db: any, creds: OrgCredentials, ctx: ReplyCtx, text: stri
     } else {
       providerId = await sendDirectMessage({
         pageId: ctx.pageId!,
-        accessToken: creds.accessToken,
+        accessToken: creds.pageToken,
         recipientId: ctx.recipientId,
         text,
       });

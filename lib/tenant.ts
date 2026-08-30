@@ -20,6 +20,7 @@ export interface OrgCredentials {
   waBusinessId: string;
   fbPageId: string;
   igAccountId: string;
+  pageToken: string;
   accessToken: string;
   appSecret: string;
   verifyToken: string;
@@ -176,6 +177,7 @@ function buildCredentials(row: any): OrgCredentials {
     fbPageId: settings.fb_page_id ?? "",
     igAccountId: settings.ig_account_id ?? "",
     accessToken: decryptChecked(row.id, secrets.meta_access_token, "meta_access_token"),
+    pageToken: secrets.meta_page_token ? decryptChecked(row.id, secrets.meta_page_token, "meta_page_token") : decryptChecked(row.id, secrets.meta_access_token, "meta_access_token"),
     appSecret: decryptChecked(row.id, secrets.meta_app_secret, "meta_app_secret"),
     verifyToken: decryptChecked(row.id, secrets.webhook_verify_token, "webhook_verify_token"),
     n8nWebhookUrl: settings.n8n_webhook_url ?? "",

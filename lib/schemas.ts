@@ -127,6 +127,7 @@ export const orgSettings = z
     ai_auto_reply_level: z.number().int().min(1).max(3).optional(),
 
     meta_access_token: z.string().trim().min(20).max(600).optional(),
+    meta_page_token: z.string().trim().min(20).max(600).optional(),
     meta_app_secret: z.string().trim().min(10).max(200).optional(),
     regenerate_verify_token: z.boolean().optional(),
     regenerate_n8n_secret: z.boolean().optional(),

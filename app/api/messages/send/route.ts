@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
           pageId: conv.channel === "instagram"
             ? creds.fbPageId
             : creds.fbPageId,
-          accessToken: creds.accessToken,
+          accessToken: creds.pageToken,
           recipientId: lead?.channel_uid || "",
           text: body,
         });

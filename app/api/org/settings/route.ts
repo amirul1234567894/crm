@@ -33,6 +33,7 @@ export async function GET() {
     settings: settings ?? {},
     secrets: {
       meta_access_token: maskSecret(decrypt(secrets?.meta_access_token)),
+      meta_page_token: maskSecret(decrypt(secrets?.meta_page_token)),
       meta_app_secret: maskSecret(decrypt(secrets?.meta_app_secret)),
       // M-8: owner-only route; verify token client ke Meta te boshate hobe tai dekhai
       webhook_verify_token: decrypt(secrets?.webhook_verify_token),
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
   // secrets — encrypt kore
   const secretsPatch: Record<string, unknown> = {};
   if (body.meta_access_token) secretsPatch.meta_access_token = encrypt(body.meta_access_token);
+  if (body.meta_page_token) secretsPatch.meta_page_token = encrypt(body.meta_page_token);
   if (body.meta_app_secret) secretsPatch.meta_app_secret = encrypt(body.meta_app_secret);
   if (body.regenerate_verify_token) secretsPatch.webhook_verify_token = encrypt(generateSecret(16));
   let regeneratedN8nSecret: string | null = null;

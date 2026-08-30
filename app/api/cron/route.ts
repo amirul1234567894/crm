@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       } else {
         providerId = await sendDirectMessage({
           pageId: creds.fbPageId,
-          accessToken: creds.accessToken, recipientId: lead.channel_uid, text: s.body,
+          accessToken: creds.pageToken, recipientId: lead.channel_uid, text: s.body,
         });
       }
       await db.from("messages").insert({
