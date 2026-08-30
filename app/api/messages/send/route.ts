@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
       } else {
         providerId = await sendDirectMessage({
           pageId: conv.channel === "instagram"
-            ? creds.igAccountId || creds.fbPageId
+            ? creds.fbPageId
             : creds.fbPageId,
           accessToken: creds.accessToken,
           recipientId: lead?.channel_uid || "",

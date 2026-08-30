@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
         );
       } else {
         providerId = await sendDirectMessage({
-          pageId: conv.channel === "instagram" ? creds.igAccountId : creds.fbPageId,
+          pageId: creds.fbPageId,
           accessToken: creds.accessToken, recipientId: lead.channel_uid, text: s.body,
         });
       }

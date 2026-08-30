@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
           );
         } else {
           providerId = await sendDirectMessage({
-            pageId: channel === "instagram" ? creds.igAccountId : creds.fbPageId,
+            pageId: channel === "instagram" ? creds.fbPageId : creds.fbPageId,
             accessToken: creds.accessToken,
             recipientId: recipient,
             text,
