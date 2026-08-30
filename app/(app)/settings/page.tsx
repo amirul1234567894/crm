@@ -216,23 +216,8 @@ export default function SettingsPage() {
       </section>
 
       <section className="card space-y-3">
-        <h2 className="text-sm font-bold">Auto messages</h2>
-        <label className="flex items-center gap-2 text-[13px]">
-          <input type="checkbox" checked={form.auto_reply_enabled} onChange={(e) => set("auto_reply_enabled", e.target.checked)} />
-          Keyword auto-reply rules enabled (manage rules on the Automation page)
-        </label>
-        <div>
-          <label className="label">Greeting message (sent when a new customer sends their first message)</label>
-          <textarea className="input min-h-[60px]" value={form.greeting_message} onChange={(e) => set("greeting_message", e.target.value)} placeholder="Hi! How can I help you today?" />
-        </div>
-        <div>
-          <label className="label">Away message (sent outside business hours)</label>
-          <textarea className="input min-h-[60px]" value={form.away_message} onChange={(e) => set("away_message", e.target.value)} placeholder="We're currently offline. We'll reply starting at 10 AM." />
-        </div>
-        <div>
-          <label className="label">Closing message (sent when a conversation is closed)</label>
-          <textarea className="input min-h-[60px]" value={form.closing_message} onChange={(e) => set("closing_message", e.target.value)} placeholder="Thank you! Let us know if you need anything else." />
-        </div>
+        <h2 className="text-sm font-bold">Spam protection</h2>
+        
         <div>
           <label className="label">Spam keywords (comma-separated -- matching keywords will flag the conversation as spam)</label>
           <input className="input" value={form.spam_keywords} onChange={(e) => set("spam_keywords", e.target.value)} placeholder="lottery, free bitcoin, click this link" />
