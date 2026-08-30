@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Login chara dhoka jay emon path */
-const PUBLIC = ["/login", "/api/webhooks", "/api/cron", "/api/campaigns/send", "/privacy-policy.html"];
+const PUBLIC = ["/login", "/api/webhooks", "/api/cron", "/api/campaigns/send"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -33,7 +33,8 @@ export async function middleware(request: NextRequest) {
   // itself, so this is matched precisely instead of via the PUBLIC prefix
   // list above.
   const isN8nLeadStatus = /^\/api\/leads\/[^/]+\/status$/.test(path);
-  const isPublic = PUBLIC.some((p) => path.startsWith(p)) || isN8nLeadStatus;
+  const isPrivacyPolicy = /^\/privacy-policy-[a-z0-9-]+\.html$/.test(path);
+  const isPublic = PUBLIC.some((p) => path.startsWith(p)) || isN8nLeadStatus || isPrivacyPolicy;
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
