@@ -57,17 +57,28 @@ export async function sendTypingIndicator(opts: {
 
 export async function fetchProfile(
   psid: string,
-  accessToken: string
+  accessToken: string,
+  channel: "facebook" | "instagram" = "facebook"
 ): Promise<{ name: string | null }> {
+  const fields = channel === "instagram" ? "name,username" : "first_name,last_name";
   try {
     const res = await fetch(
-      `${GRAPH}/${psid}?fields=name,first_name,last_name`,
+      `${GRAPH}/${psid}?fields=${fields}`,
       { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(8000) }
     );
     const d = await res.json();
-    const name = d?.name || [d?.first_name, d?.last_name].filter(Boolean).join(" ") || null;
+    if (d?.error) {
+      console.error(`fetchProfile(${channel}) Graph error:`, d.error.code, d.error.message);
+      return { name: null };
+    }
+    const name =
+      d?.name ||
+      d?.username ||
+      [d?.first_name, d?.last_name].filter(Boolean).join(" ") ||
+      null;
     return { name };
-  } catch {
+  } catch (err: any) {
+    console.error(`fetchProfile(${channel}) failed:`, err?.message);
     return { name: null };
   }
 }
