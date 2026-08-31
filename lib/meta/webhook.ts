@@ -184,7 +184,7 @@ async function handleDirectMessage(
   if (!senderId) return;
 
   const text = ev.message.text ?? "[attachment]";
-  const profile = await fetchProfile(senderId, creds.pageToken, channel === "instagram" ? "instagram" : "facebook");
+  const profile = await fetchProfile(senderId, creds.pageToken, channel === "instagram" ? "instagram" : "facebook", pageId);
 
   const lead = await upsertLead(db, creds.orgId, {
     channel_uid: senderId,

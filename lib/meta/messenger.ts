@@ -58,7 +58,8 @@ export async function sendTypingIndicator(opts: {
 export async function fetchProfile(
   psid: string,
   accessToken: string,
-  channel: "facebook" | "instagram" = "facebook"
+  channel: "facebook" | "instagram" = "facebook",
+  pageId?: string
 ): Promise<{ name: string | null }> {
   const fields = channel === "instagram" ? "name,username" : "first_name,last_name";
   try {
@@ -67,18 +68,45 @@ export async function fetchProfile(
       { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(8000) }
     );
     const d = await res.json();
-    if (d?.error) {
+    if (!d?.error) {
+      const name =
+        d?.name ||
+        d?.username ||
+        [d?.first_name, d?.last_name].filter(Boolean).join(" ") ||
+        null;
+      if (name) return { name };
+    } else {
       console.error(`fetchProfile(${channel}) Graph error:`, d.error.code, d.error.message);
-      return { name: null };
     }
-    const name =
-      d?.name ||
-      d?.username ||
-      [d?.first_name, d?.last_name].filter(Boolean).join(" ") ||
-      null;
-    return { name };
   } catch (err: any) {
     console.error(`fetchProfile(${channel}) failed:`, err?.message);
+  }
+
+  // Fallback: Conversations API -- page token diyei kaj kore, direct
+  // profile endpoint blocked thakleo (Business Asset User Profile Access
+  // approval chara) naam pawa jay.
+  if (!pageId) return { name: null };
+  try {
+    const platform = channel === "instagram" ? "&platform=instagram" : "";
+    const res = await fetch(
+      `${GRAPH}/${pageId}/conversations?user_id=${psid}&fields=participants${platform}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(8000) }
+    );
+    const d = await res.json();
+    if (d?.error) {
+      console.error(`fetchProfile(${channel}) conversations fallback error:`, d.error.code, d.error.message);
+      return { name: null };
+    }
+    for (const conv of d?.data ?? []) {
+      for (const p of conv?.participants?.data ?? []) {
+        if (p?.id === psid && (p?.name || p?.username)) {
+          return { name: p.name || p.username };
+        }
+      }
+    }
+    return { name: null };
+  } catch (err: any) {
+    console.error(`fetchProfile(${channel}) fallback failed:`, err?.message);
     return { name: null };
   }
 }
