@@ -16,8 +16,6 @@ interface Conv {
   unread_count: number; last_message_at: string | null; last_message_text: string | null;
   window_expires_at: string | null; is_archived: boolean; lead_id: string;
   sla_first_breached: boolean;
-  needs_human: boolean;
-  handoff_reason: string | null;
   leads: { id: string; name: string | null; phone: string | null; source: string;
            is_blocked: boolean; is_spam: boolean; opt_in: boolean } | null;
 }
@@ -54,7 +52,7 @@ function InboxInner() {
   const [canned, setCanned] = useState<Canned[]>([]);
 
   const [tab, setTab] = useState<"reply" | "notes">("reply");
-  const [filter, setFilter] = useState({ channel: "", status: "open", mine: false, unread: false, archived: false, needsHuman: false });
+  const [filter, setFilter] = useState({ channel: "", status: "open", mine: false, unread: false, archived: false });
   const [q, setQ] = useState("");
   const [text, setText] = useState("");
   const [noteText, setNoteText] = useState("");
@@ -65,7 +63,6 @@ function InboxInner() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleAt, setScheduleAt] = useState("");
   const [showTransfer, setShowTransfer] = useState(false);
-  const [aiBusy, setAiBusy] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<Conv | null>(null);
@@ -83,7 +80,6 @@ function InboxInner() {
     if (filter.status) query = query.eq("status", filter.status);
     if (filter.mine) query = query.eq("assigned_to", org.userId);
     if (filter.unread) query = query.gt("unread_count", 0);
-    if (filter.needsHuman) query = query.eq("needs_human", true);
     const { data } = await query;
     setConvs((data as Conv[]) ?? []);
   }, [supabase, filter, org.userId]);
@@ -225,33 +221,6 @@ function InboxInner() {
     loadConvs();
   }
 
-  /**
-   * Pause or resume the assistant on this thread. Pausing is also the
-   * "I'll take this one myself" button -- it stops every automated send
-   * until someone resumes it.
-   */
-  async function toggleAi(action: "handoff" | "resume") {
-    if (!active || aiBusy) return;
-    setAiBusy(true); setError("");
-    const reason = "An agent took this conversation over.";
-    const res = await fetch("/api/conversations/handoff", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        conversation_id: active.id,
-        action,
-        reason: action === "handoff" ? reason : undefined,
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setAiBusy(false);
-    if (!res.ok) { setError(data.error ?? "Could not change the assistant."); return; }
-    setActive((a) => a ? ({
-      ...a,
-      needs_human: action === "handoff",
-      handoff_reason: action === "handoff" ? reason : null,
-    } as Conv) : a);
-    loadConvs();
-  }
   async function togglePin() {
     if (!active) return;
     if (pinned.has(active.id)) {
@@ -356,8 +325,6 @@ function InboxInner() {
               onClick={() => setFilter((f) => ({ ...f, unread: !f.unread }))}>Unread</button>
             <button className={`rounded-full px-2.5 py-1 font-semibold ${filter.archived ? "bg-brand text-white" : "border border-line text-muted dark:border-slate-700"}`}
               onClick={() => setFilter((f) => ({ ...f, archived: !f.archived }))}>Archived</button>
-            <button className={`rounded-full px-2.5 py-1 font-semibold ${filter.needsHuman ? "bg-rose-600 text-white" : "border border-line text-muted dark:border-slate-700"}`}
-              onClick={() => setFilter((f) => ({ ...f, needsHuman: !f.needsHuman }))}>Needs human</button>
           </div>
         </div>
 
@@ -371,9 +338,6 @@ function InboxInner() {
                   {c.leads?.name || c.leads?.phone || "Unknown"}
                 </span>
                 {pinned.has(c.id) && <IconPin className="h-3 w-3 shrink-0 text-brand" />}
-                {c.needs_human && (
-                  <span className="badge shrink-0 bg-rose-600 text-white">needs human</span>
-                )}
                 {c.sla_first_breached && c.status !== "closed" && (
                   <span className="badge bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">SLA</span>
                 )}
@@ -433,12 +397,7 @@ function InboxInner() {
                 <option value="high">High</option>
                 <option value="urgent">Urgent</option>
               </select>
-              <button className={`btn-ghost h-8 px-2 text-2xs font-semibold ${active.needs_human ? "text-rose-600" : ""}`}
-                title={active.needs_human ? "Let the assistant reply again" : "Stop the assistant and handle this yourself"}
-                disabled={aiBusy}
-                onClick={() => toggleAi(active.needs_human ? "resume" : "handoff")}>
-                {active.needs_human ? "Resume AI" : "Pause AI"}
-              </button>              <button className="btn-ghost h-8 w-8 p-0" title="Transfer" onClick={() => setShowTransfer(true)}>
+              <button className="btn-ghost h-8 w-8 p-0" title="Transfer" onClick={() => setShowTransfer(true)}>
                 <IconTransfer className="h-4 w-4" />
               </button>
               <button className={`btn-ghost h-8 w-8 p-0 ${pinned.has(active.id) ? "text-brand" : ""}`}
@@ -457,18 +416,6 @@ function InboxInner() {
             </div>
           </div>
 
-          {active.needs_human && (
-            <div className="flex flex-wrap items-center gap-2 bg-rose-50 px-4 py-2 text-xs font-medium text-rose-800 dark:bg-rose-950/40 dark:text-rose-300">
-              <span className="font-bold">Waiting for a human.</span>
-              <span className="text-rose-700/80 dark:text-rose-400">
-                {active.handoff_reason || "The assistant could not answer this one."}
-              </span>
-              <button className="ml-auto rounded-lg bg-rose-600 px-2.5 py-1 text-2xs font-semibold text-white disabled:opacity-50"
-                disabled={aiBusy} onClick={() => toggleAi("resume")}>
-                {aiBusy ? "Working..." : "Resume assistant"}
-              </button>
-            </div>
-          )}
           {lockedName && (
             <div className="flex items-center gap-2 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
               <IconLock className="h-3.5 w-3.5" />
