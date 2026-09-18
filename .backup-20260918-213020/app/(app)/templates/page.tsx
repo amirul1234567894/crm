@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useOrg } from "@/components/OrgProvider";
 import { IconPlus } from "@/components/Icons";
 
-/** Quick replies (canned responses) + WhatsApp approved templates -- two tabs on one page. */
+/** Quick replies (canned responses) + WhatsApp approved templates -- ek page e duita tab. */
 export default function TemplatesPage() {
   const org = useOrg();
   const supabase = useMemo(() => createClient(), []);
@@ -16,20 +16,16 @@ export default function TemplatesPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState("");
   const [loadErr, setLoadErr] = useState("");
-  const [wabaId, setWabaId] = useState("");
-  const [creating, setCreating] = useState<any | null>(null);
   const isManager = org.role !== "agent";
 
   const load = useCallback(async () => {
-    const [c, t, s] = await Promise.all([
+    const [c, t] = await Promise.all([
       supabase.from("canned_responses").select("*").order("category").order("title"),
       supabase.from("templates").select("*").order("name"),
-      supabase.from("org_settings").select("wa_business_id").maybeSingle(),
     ]);
     if (c.error || t.error) setLoadErr("Could not load templates: " + (c.error?.message || t.error?.message));
     else setLoadErr("");
     setCanned(c.data ?? []); setTemplates(t.data ?? []);
-    setWabaId((s.data as any)?.wa_business_id ?? "");
   }, [supabase]);
   useEffect(() => { load(); }, [load]);
 
@@ -43,35 +39,6 @@ export default function TemplatesPage() {
       setSyncMsg("Network error while syncing.");
     } finally {
       setSyncing(false);
-      load();
-    }
-  }
-
-  async function saveTemplate() {
-    if (!creating?.name || !creating?.body_text) { alert("Name and body are required."); return; }
-    setCreating({ ...creating, busy: true });
-    try {
-      const res = await fetch("/api/templates/create", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: creating.name,
-          language: creating.language || "en",
-          category: creating.category || "UTILITY",
-          body_text: creating.body_text,
-          body_example: String(creating.body_example ?? "").split("|").map((s: string) => s.trim()).filter(Boolean),
-          footer_text: creating.footer_text || undefined,
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      setCreating(null);
-      setSyncMsg(res.ok
-        ? `Template "${j.name}" submitted to Meta -- status: ${j.status}.`
-        : (j.error ?? "Could not create the template."));
-    } catch {
-      setCreating(null);
-      setSyncMsg("Network error while creating the template.");
-    } finally {
       load();
     }
   }
@@ -93,7 +60,7 @@ export default function TemplatesPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4 lg:p-8">
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex items-center gap-4">
         <h1 className="text-lg font-bold tracking-tight">Templates</h1>
         <div className="flex gap-1">
           <button className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${tab === "canned" ? "bg-brand text-white" : "btn-ghost"}`}
@@ -107,15 +74,9 @@ export default function TemplatesPage() {
           </button>
         )}
         {tab === "wa" && isManager && (
-          <div className="ml-auto flex flex-wrap gap-2">
-            <button className="btn h-9 text-xs" onClick={() => setCreating({ language: "en", category: "UTILITY" })}>
-              <IconPlus className="h-4 w-4" /> Create template
-            </button>
-            <button type="button" className="btn-ghost h-9 rounded-lg px-3 text-xs font-semibold" onClick={() => window.open(wabaId ? ("https://business.facebook.com/wa/manage/message-templates/?waba_id=" + wabaId) : "https://business.facebook.com/wa/manage/message-templates/", "_blank", "noopener,noreferrer")}>Open in Meta</button>
-            <button className="btn-ghost h-9 rounded-lg px-3 text-xs font-semibold" disabled={syncing} onClick={syncTemplates}>
-              {syncing ? "Syncing..." : "Sync from Meta"}
-            </button>
-          </div>
+          <button className="btn ml-auto h-9 text-xs" disabled={syncing} onClick={syncTemplates}>
+            {syncing ? "Syncing..." : "Sync from Meta"}
+          </button>
         )}
       </div>
       {syncMsg && <p className="text-xs text-muted">{syncMsg}</p>}
@@ -178,7 +139,7 @@ export default function TemplatesPage() {
               ))}
               {templates.length === 0 && (
                 <tr><td colSpan={5} className="td py-6 text-center text-muted">
-                  No WhatsApp templates yet. Click &quot;Create template&quot; to submit one to Meta, or &quot;Sync from Meta&quot; to pull existing ones.
+                  WhatsApp approved templates sync here. Click &quot;Sync from Meta&quot; above, or add them in Meta Business Manager first.
                 </td></tr>
               )}
             </tbody>
@@ -211,63 +172,6 @@ export default function TemplatesPage() {
             <div className="flex gap-2">
               <button className="btn flex-1" onClick={saveCanned}>Save</button>
               <button className="btn-ghost flex-1" onClick={() => setEditing(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {creating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4" onClick={() => setCreating(null)}>
-          <div className="card w-full max-w-md space-y-3" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[13.5px] font-bold">Create WhatsApp template</h3>
-            <p className="text-2xs text-muted">
-              Meta reviews every template. Approval usually takes a few minutes to 24 hours.
-            </p>
-            <div>
-              <label className="label">Name (lowercase, underscores)</label>
-              <input className="input" placeholder="followup_day_2"
-                value={creating.name ?? ""} onChange={(e) => setCreating({ ...creating, name: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="label">Language</label>
-                <select className="input" value={creating.language}
-                  onChange={(e) => setCreating({ ...creating, language: e.target.value })}>
-                  <option value="en">English</option>
-                  <option value="hi">Hindi</option>
-                  <option value="bn">Bengali</option>
-                  <option value="mr">Marathi</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Category</label>
-                <select className="input" value={creating.category}
-                  onChange={(e) => setCreating({ ...creating, category: e.target.value })}>
-                  <option value="UTILITY">Utility</option>
-                  <option value="MARKETING">Marketing</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="label">Body -- use {"{{1}}"} for the first variable</label>
-              <textarea className="input min-h-24" placeholder="Hi {{1}}, we noticed you had a question. Shall we help?"
-                value={creating.body_text ?? ""} onChange={(e) => setCreating({ ...creating, body_text: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Example values (separate with | )</label>
-              <input className="input" placeholder="Amit" value={creating.body_example ?? ""}
-                onChange={(e) => setCreating({ ...creating, body_example: e.target.value })} />
-            </div>
-            <div>
-              <label className="label">Footer (optional)</label>
-              <input className="input" placeholder="Reply STOP to opt out" value={creating.footer_text ?? ""}
-                onChange={(e) => setCreating({ ...creating, footer_text: e.target.value })} />
-            </div>
-            <div className="flex gap-2">
-              <button className="btn flex-1" disabled={creating.busy} onClick={saveTemplate}>
-                {creating.busy ? "Submitting..." : "Submit to Meta"}
-              </button>
-              <button className="btn-ghost flex-1" onClick={() => setCreating(null)}>Cancel</button>
             </div>
           </div>
         </div>

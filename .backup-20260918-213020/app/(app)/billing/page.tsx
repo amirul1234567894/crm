@@ -19,27 +19,17 @@ export default function BillingPage() {
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
-  const [metaBiz, setMetaBiz] = useState<{ business: string; waba: string }>({ business: "", waba: "" });
 
   const load = useCallback(async () => {
     const db = createClient();
-    const [{ data: inv }, { data: pm }, { data: s }] = await Promise.all([
+    const [{ data: inv }, { data: pm }] = await Promise.all([
       db.from("invoices").select("*").order("created_at", { ascending: false }),
       db.from("payment_methods").select("*").eq("is_active", true).order("sort_order"),
-      db.from("org_settings").select("meta_business_id, wa_business_id").maybeSingle(),
     ]);
     setInvoices((inv ?? []) as Invoice[]);
     setMethods((pm ?? []) as PayMethod[]);
-    setMetaBiz({
-      business: (s as any)?.meta_business_id ?? "",
-      waba: (s as any)?.wa_business_id ?? "",
-    });
   }, []);
   useEffect(() => { load(); }, [load]);
-
-  const metaBillingUrl = metaBiz.waba
-    ? `https://business.facebook.com/billing_hub/accounts/details/?asset_id=${metaBiz.waba}${metaBiz.business ? `&business_id=${metaBiz.business}` : ""}`
-    : "https://business.facebook.com/billing_hub/payment_settings";
 
   async function submitPayment() {
     if (!paying) return;
@@ -47,6 +37,7 @@ export default function BillingPage() {
     if (!method) return setErr("Please select a payment method.");
     if (txn.trim().length < 4) return setErr("Please enter a valid transaction ID / reference.");
     setBusy(true);
+    // A client can only move an invoice from unpaid -> submitted; these are the only fields it may set.
     const { error } = await createClient().from("invoices").update({
       status: "submitted", payment_method: method, txn_ref: txn.trim(),
       payer_note: note.trim() || null, submitted_at: new Date().toISOString(),
@@ -69,17 +60,6 @@ export default function BillingPage() {
       <div>
         <h1 className="text-lg font-bold">Billing</h1>
         <p className="text-xs text-muted">Monthly invoices -- pay and submit your transaction ID, and it will be marked paid once an admin verifies it.</p>
-      </div>
-
-      <div className="card flex flex-wrap items-center gap-3">
-        <div className="min-w-48 flex-1">
-          <h2 className="text-[13px] font-bold">WhatsApp usage charges</h2>
-          <p className="text-2xs text-muted">
-            Meta bills WhatsApp conversation charges directly to your WhatsApp Business Account.
-            These are separate from the invoices below.
-          </p>
-        </div>
-        <button type="button" className="btn h-9 rounded-lg px-3 text-xs font-semibold" onClick={() => window.open(metaBillingUrl, "_blank", "noopener,noreferrer")}>Manage Meta payment method</button>
       </div>
 
       {unpaid.length > 0 && (

@@ -5,7 +5,6 @@ import { safeEqual } from "@/lib/crypto";
 import { sendText, sendTemplate } from "@/lib/meta/whatsapp";
 import { sendDirectMessage } from "@/lib/meta/messenger";
 import { limits } from "@/lib/ratelimit";
-import { handleAutomationAction } from "@/lib/automation/actions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 25;
@@ -138,10 +137,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // AI follow-up engine + human handoff (lib/automation/actions.ts).
-    const automation = await handleAutomationAction(action, payload, db, creds);
-    if (automation) return automation;
-
     switch (action) {
       case "send_message": {
         const phone = String(payload.phone ?? "");

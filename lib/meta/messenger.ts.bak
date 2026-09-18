@@ -1,5 +1,5 @@
 /**
- * Messenger + Instagram Direct â€” Send API.
+ * Messenger + Instagram Direct — Send API.
  * 15s timeout sob call e.
  */
 
@@ -33,7 +33,7 @@ export async function sendDirectMessage(opts: {
   return data?.message_id ?? "";
 }
 
-/** Typing indicator â€” Messenger/IG support kore (WhatsApp e nei). */
+/** Typing indicator — Messenger/IG support kore (WhatsApp e nei). */
 export async function sendTypingIndicator(opts: {
   pageId: string;
   accessToken: string;
@@ -109,50 +109,4 @@ export async function fetchProfile(
     console.error(`fetchProfile(${channel}) fallback failed:`, err?.message);
     return { name: null };
   }
-}
-
-/* ==========================================================================
-   Message tags -- the ONLY way to message a Messenger/Instagram user once
-   the 24-hour window has closed. HUMAN_AGENT extends it to 7 days and needs
-   the human_agent permission on the Meta app.
-   ========================================================================== */
-
-export type MessageTag =
-  | "HUMAN_AGENT"
-  | "CONFIRMED_EVENT_UPDATE"
-  | "POST_PURCHASE_UPDATE"
-  | "ACCOUNT_UPDATE";
-
-export async function sendDirectMessageTagged(opts: {
-  pageId: string;
-  accessToken: string;
-  recipientId: string;
-  text: string;
-  tag?: MessageTag;
-}): Promise<string> {
-  if (!opts.pageId || !opts.accessToken)
-    throw new Error("Messenger is not connected. Add credentials on the Settings page.");
-
-  const body: Record<string, unknown> = {
-    recipient: { id: opts.recipientId },
-    message: { text: opts.text.slice(0, 2000) },
-    ...(opts.tag
-      ? { messaging_type: "MESSAGE_TAG", tag: opts.tag }
-      : { messaging_type: "RESPONSE" }),
-  };
-
-  const res = await fetch(`${GRAPH}/${opts.pageId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${opts.accessToken}` },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(data?.error?.message || `Meta API error ${res.status}`) as Error & { code?: number };
-    err.code = data?.error?.code;
-    throw err;
-  }
-  return data?.message_id ?? "";
 }
