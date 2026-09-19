@@ -47,7 +47,9 @@ begin
       handoff_reason = left(coalesce(p_reason, ''), 500),
       handoff_at = now(), handoff_by = coalesce(p_by, 'ai'),
       handoff_resolved_at = null, handoff_resolved_by = null,
-      priority = greatest(coalesce(priority, 0), 2), is_open = true
+      priority = case when coalesce(priority, 'low') in ('urgent', 'high')
+                      then priority else 'high' end,
+      is_open = true
   where id = p_conversation and org_id = p_org;
 
   update leads
