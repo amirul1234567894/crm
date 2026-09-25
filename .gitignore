@@ -3,3 +3,9 @@ node_modules/
 .env*.local
 .env
 *.tsbuildinfo
+
+*.bak
+blocked-check.txt
+send-check.txt
+handoff-report.txt
+resume-debug.txt
