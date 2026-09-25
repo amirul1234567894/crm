@@ -194,7 +194,27 @@ export async function POST(req: NextRequest) {
         }
 
         // Log this to the thread too, if we can resolve the conversation.
-        const convId = payload.conversation_id as string | undefined;
+        // If n8n didn't send conversation_id, find it from the recipient so
+        // bot replies still show up in the inbox thread.
+        let convId = payload.conversation_id as string | undefined;
+        if (!convId) {
+          const { data: leadRow } = await db.from("leads")
+            .select("id")
+            .eq("org_id", creds.orgId)
+            .or(`channel_uid.eq.${recipient},phone.eq.${recipient}`)
+            .limit(1)
+            .maybeSingle();
+          if (leadRow?.id) {
+            const { data: convRow } = await db.from("conversations")
+              .select("id")
+              .eq("org_id", creds.orgId)
+              .eq("lead_id", leadRow.id)
+              .order("last_message_at", { ascending: false, nullsFirst: false })
+              .limit(1)
+              .maybeSingle();
+            convId = convRow?.id;
+          }
+        }
         if (convId) {
           await db.from("messages").insert({
             org_id: creds.orgId, conversation_id: convId, direction: "out",
