@@ -378,7 +378,7 @@ function InboxInner() {
                   <span className="badge bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300">SLA</span>
                 )}
                 <span className="ml-auto shrink-0 text-2xs text-muted">
-                  {c.last_message_at ? new Date(c.last_message_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                  {c.last_message_at ? fmtWhen(c.last_message_at) : ""}
                 </span>
               </div>
               <div className="mt-0.5 flex items-center gap-2">
@@ -506,7 +506,7 @@ function InboxInner() {
                     }`}>
                       {m.body}
                       <div className={`mt-1 flex items-center gap-1.5 text-[10px] ${m.direction === "out" ? "text-white/70" : "text-muted"}`}>
-                        {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {fmtWhen(m.created_at, true)}
                         {m.is_automated && <span>{"\u00b7"} bot</span>}
                         {m.direction === "out" && (
                           <span>{"\u00b7"} {m.status === "read" ? "\u2713\u2713 read" : m.status === "delivered" ? "\u2713\u2713" : m.status === "failed" ? "failed" : "\u2713"}</span>
@@ -670,4 +670,20 @@ export default function InboxPage() {
       <InboxInner />
     </Suspense>
   );
+}
+/* Aaj hole time, gotokal hole "Yesterday", tar age hole tarikh */
+function fmtWhen(iso: string, withTime = false): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const dayStart = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dayDiff = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+  if (dayDiff <= 0) return time;
+  if (dayDiff === 1) return withTime ? `Yesterday ${time}` : "Yesterday";
+  const date = d.toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" as const } : {}),
+  });
+  return withTime ? `${date}, ${time}` : date;
 }
